@@ -1,0 +1,108 @@
+#!/usr/bin/env python
+""" CLIでタスクを管理するプログラム """
+
+from datetime import datetime, timedelta
+import re
+import typer
+from rich.console import Console
+from rich.table import Table
+from storage import load_tasks, save_tasks, DATA_FILE
+
+# TyperやConsoleのインスタンスを作成 --- (*1)
+app = typer.Typer(no_args_is_help=True)
+console = Console()
+
+def calc_due_date(due: str) -> datetime:
+    """期限の表現を解析して、通知日時を計算する""" # --- (*2)
+    now = datetime.now()
+    normalized = due.strip().lower()
+    if normalized == "明日":
+        return (now + timedelta(days=1)).replace(hour=8, minute=0, second=0, microsecond=0)
+    if normalized == "明後日":
+        return (now + timedelta(days=2)).replace(hour=8, minute=0, second=0, microsecond=0)
+    if normalized == "来週":
+        return (now + timedelta(days=7)).replace(hour=8, minute=0, second=0, microsecond=0)
+    match = re.fullmatch(r"(\d+)([dh日])", normalized)
+    if not match:
+        raise typer.BadParameter("期限は '3d' / '2h' の形式で指定してください。")
+    amount = int(match.group(1))
+    unit = match.group(2)
+    if unit == "d":
+        return (now + timedelta(days=amount)).replace(hour=8, minute=0, second=0, microsecond=0)
+    if unit == "h":
+        return now + timedelta(hours=amount)
+    return now
+
+
+@app.command()
+def add(due: str, task: str):
+    """タスクを追加する (例: later.py add "3d" "レポート提出")""" # --- (*3)
+    tasks = load_tasks()
+    notify_at = calc_due_date(due)
+    notify_at_s = notify_at.strftime("%Y-%m-%d %H:%M:%S")
+    # 既存の date キーは維持しつつ、時刻付き情報を notify_at に保存
+    tasks.append({"date": notify_at_s, "task": task})
+    save_tasks(tasks)
+    print(f"タスクを追加しました: {task} (通知日時: {notify_at_s})")
+
+
+@app.command("a")
+def add_short(due: str, task: str):
+    """タスクを追加する (例: later.py a "3d" "レポート提出")""" # --- (*3)
+    add(due, task)
+
+
+def show_tasks(tasks: list[dict], title: str):
+    """タスクのリストを表形式で表示する""" # -- (*4)
+    if len(tasks) == 0:
+        return print("[later] タスクはありません。")
+    table = Table(title=title, show_lines=False)
+    table.add_column("番号", justify="right")
+    table.add_column("タスク", style="red")
+    table.add_column("期限", style="green")
+    for idx, task in enumerate(tasks, start=1):
+        table.add_row(f"{idx}", task["task"], task["date"])
+    console.print(table)
+
+
+@app.command()
+def show():
+    """保存されたタスクを表示する""" # --- (*5)
+    tasks = load_tasks()
+    show_tasks(tasks, "■ 保存したタスク一覧")
+
+@app.command()
+def clear():
+    """期限が過ぎたタスクを削除する""" # --- (*6)
+    tasks = load_tasks()
+    now = datetime.now()
+    tasks_due = []
+    for task in tasks:
+        notify_at = datetime.strptime(task["date"], "%Y-%m-%d %H:%M:%S")
+        remove_date = notify_at - timedelta(days=1)  # 期限が1日以上過ぎたもの
+        if remove_date > now:
+            tasks_due.append(task)
+    save_tasks(tasks_due)
+    print(f"期限が過ぎたタスクを削除しました。残りのタスク数: {len(tasks_due)}")
+    show()  # 更新後のタスクを表示
+
+@app.command()
+def check():
+    """期限が来たタスクを表示する""" # --- (*7)
+    tasks = load_tasks()
+    now = datetime.now()
+    tasks_due = []
+    for task in tasks:
+        notify_at = datetime.strptime(task["date"], "%Y-%m-%d %H:%M:%S")
+        if notify_at <= now:
+            tasks_due.append(task)
+    show_tasks(tasks_due, "■ 期限が来たタスク")
+
+@app.command("data")
+def save_data():
+    """データ保存フォルダを表示"""
+    print("タスクは以下のファイルに保存されています:")
+    print(DATA_FILE)
+
+if __name__ == "__main__":
+    app()

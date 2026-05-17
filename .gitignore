@@ -1,3 +1,6 @@
+# .gitignore for later-cli
+tasks.json
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
