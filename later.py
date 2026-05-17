@@ -8,12 +8,12 @@ from rich.console import Console
 from rich.table import Table
 from storage import load_tasks, save_tasks, DATA_FILE
 
-# TyperやConsoleのインスタンスを作成 --- (*1)
+# TyperやConsoleのインスタンスを作成
 app = typer.Typer(no_args_is_help=True)
 console = Console()
 
 def calc_due_date(due: str) -> datetime:
-    """期限の表現を解析して、通知日時を計算する""" # --- (*2)
+    """期限の表現を解析して、通知日時を計算する"""
     now = datetime.now()
     normalized = due.strip().lower()
     if normalized == "明日":
@@ -36,7 +36,16 @@ def calc_due_date(due: str) -> datetime:
 
 @app.command()
 def add(due: str, task: str):
-    """タスクを追加する (例: later.py add "3d" "レポート提出")""" # --- (*3)
+    """
+    タスクを追加する
+
+    指定例:
+      later.py add "3d" "レポート提出" ... Add 3 days task
+      later.py add "10h" "打ち合わせ" ... 10 hours task
+      later.py add "明日" "明日のタスク" ... Add tomorrow 8am task
+      later.py add "明後日" "明後日のタスク" ... Add the day after tomorrow 8am task
+      later.py add "来週" "来週のタスク" ... Add next week 8am task
+    """
     tasks = load_tasks()
     notify_at = calc_due_date(due)
     notify_at_s = notify_at.strftime("%Y-%m-%d %H:%M:%S")
@@ -48,12 +57,12 @@ def add(due: str, task: str):
 
 @app.command("a")
 def add_short(due: str, task: str):
-    """タスクを追加する (例: later.py a "3d" "レポート提出")""" # --- (*3)
+    """タスク追加の簡易コマンド (例: later.py a "3d" "レポート提出")"""
     add(due, task)
 
 
 def show_tasks(tasks: list[dict], title: str):
-    """タスクのリストを表形式で表示する""" # -- (*4)
+    """タスクのリストを表形式で表示する"""
     if len(tasks) == 0:
         return print("[later] タスクはありません。")
     table = Table(title=title, show_lines=False)
@@ -67,13 +76,13 @@ def show_tasks(tasks: list[dict], title: str):
 
 @app.command()
 def show():
-    """保存されたタスクを表示する""" # --- (*5)
+    """保存されたタスクを表示する"""
     tasks = load_tasks()
     show_tasks(tasks, "■ 保存したタスク一覧")
 
 @app.command()
 def clear():
-    """期限が過ぎたタスクを削除する""" # --- (*6)
+    """期限が過ぎたタスクを削除する"""
     tasks = load_tasks()
     now = datetime.now()
     tasks_due = []
@@ -88,7 +97,7 @@ def clear():
 
 @app.command()
 def check():
-    """期限が来たタスクを表示する""" # --- (*7)
+    """期限が来たタスクを表示する"""
     tasks = load_tasks()
     now = datetime.now()
     tasks_due = []
