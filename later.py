@@ -4,6 +4,7 @@
 from datetime import datetime, timedelta
 import re
 import typer
+import rich
 from rich.console import Console
 from rich.table import Table
 from storage import load_tasks, save_tasks, DATA_FILE
@@ -64,7 +65,9 @@ def add_short(due: str, task: str):
 def show_tasks(tasks: list[dict], title: str):
     """タスクのリストを表形式で表示する"""
     if len(tasks) == 0:
-        return print("[later] タスクはありません。")
+        # タスクがない場合はメッセージを表示して終了
+        console.print("- [bold green]later:[/bold green] [blue]タスクはありません。[/blue]")
+        return
     table = Table(title=title, show_lines=False)
     table.add_column("番号", justify="right")
     table.add_column("タスク", style="red")
@@ -82,7 +85,7 @@ def show():
 
 @app.command()
 def clear():
-    """期限が過ぎたタスクを削除する"""
+    """期限が過ぎたタスクを一括削除する"""
     tasks = load_tasks()
     now = datetime.now()
     tasks_due = []
