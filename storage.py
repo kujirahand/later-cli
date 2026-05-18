@@ -7,6 +7,7 @@ DATA_FILE = os.path.join(ROOT_DIR, "tasks.json")
 
 def save_tasks(tasks):
     """"タスクを JSON ファイルに保存する""" # --- (*2)
+    tasks.sort(key=lambda x: x["date"])
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(tasks, f, indent=4, ensure_ascii=False)
 

@@ -84,6 +84,17 @@ def show():
     show_tasks(tasks, "■ 保存したタスク一覧")
 
 @app.command()
+def delete(number: int):
+    """番号を指定してタスクを削除する (例: later.py delete 1)"""
+    tasks = load_tasks()
+    if number < 1 or number > len(tasks):
+        raise typer.BadParameter(f"番号は 1 から {len(tasks)} の範囲で指定してください。")
+    deleted_task = tasks.pop(number - 1)
+    save_tasks(tasks)
+    print(f"タスクを削除しました: {deleted_task['task']}")
+    show()
+
+@app.command()
 def clear():
     """期限が過ぎたタスクを一括削除する"""
     tasks = load_tasks()
@@ -110,9 +121,9 @@ def check():
             tasks_due.append(task)
     show_tasks(tasks_due, "■ 期限が来たタスク")
 
-@app.command("data")
-def save_data():
-    """データ保存フォルダを表示"""
+@app.command("info")
+def info():
+    """情報を表示"""
     print("タスクは以下のファイルに保存されています:")
     print(DATA_FILE)
 
