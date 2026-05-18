@@ -4,13 +4,28 @@
 
 ## インストール
 
+### GitHubリポジトリからインストール
+
 ```sh
-# Clone the repository
+# リポジトリを取ってくる
 git clone https://github.com/kujirahand/later-cli.git
-# Install dependencies
+cd later-cli
+# 依存をインストールして、シェル補完をインストール
 python -m pip install -r requirements.txt
+python later.py --install-completion
 ```
 
+### macOS/Linuxの場合
+
+本リポジトリをcloneした後、パスに追加します。すると、`later args...`の形で利用できます。
+`~/.zshrc`や`~/.bashrc`に以下のコマンドを記述すると良いでしょう。
+
+```sh
+LATER_PATH=/path/to/later-cli
+PATH=$LATER_PATH:$PATH
+source '$HOME/.bash_completions/later.py.sh'
+$LATER_SCRIPT check
+```
 
 ## 使い方
 
