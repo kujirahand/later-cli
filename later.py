@@ -2,16 +2,31 @@
 """ CLIでタスクを管理するプログラム """
 
 from datetime import datetime, timedelta
+from pathlib import Path
 import re
 import typer
 import rich
 from rich.console import Console
 from rich.table import Table
-from storage import load_tasks, save_tasks, DATA_FILE
+from storage import load_tasks, save_tasks, get_data_file, reset_data_file, set_data_file
 
 # TyperやConsoleのインスタンスを作成
 app = typer.Typer(no_args_is_help=True)
 console = Console()
+
+@app.callback()
+def main(
+    taskfile: Path | None = typer.Option(
+        None,
+        "--file",
+        help="タスクを保存する JSON ファイルを指定します。",
+    ),
+):
+    """CLIでタスクを管理するプログラム"""
+    if taskfile is not None:
+        set_data_file(taskfile)
+    else:
+        reset_data_file()
 
 def calc_due_date(due: str) -> datetime:
     """期限の表現を解析して、通知日時を計算する"""
@@ -129,7 +144,7 @@ def check():
 def info():
     """情報を表示"""
     print("タスクは以下のファイルに保存されています:")
-    print(DATA_FILE)
+    print(get_data_file())
 
 if __name__ == "__main__":
     app()

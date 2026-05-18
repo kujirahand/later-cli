@@ -25,6 +25,7 @@ Commands:
   clear         Remove overdue tasks
   check         Show due tasks
   data          Show the data file path
+  --file FILE   Use FILE as the task JSON file
   --help        Show this help message
 
 Examples:
@@ -37,6 +38,7 @@ Examples:
   later.py clear                        # 期限切れタスクを削除
   later.py check                        # 期限切れタスクを表示
   later.py data                         # データの保存場所を表示
+  later.py --file /tmp/tasks.json add now "テスト" # 指定したファイルにタスクを追加
 ```
 
 ## 詳しい使い方
@@ -44,5 +46,4 @@ Examples:
 以下のマイナビ様の連載で、プログラムの使い方や、プログラムの詳しい解説を掲載しています。
 
 - https://news.mynavi.jp/techplus/article/zeropython-138/
-
 

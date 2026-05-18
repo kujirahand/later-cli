@@ -3,7 +3,21 @@ import os
 
 # タスクを保存する JSON ファイルのパス --- (*1)
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_FILE = os.path.join(ROOT_DIR, "tasks.json")
+DEFAULT_DATA_FILE = os.path.join(ROOT_DIR, "tasks.json")
+DATA_FILE = DEFAULT_DATA_FILE
+
+def set_data_file(path):
+    """タスクを保存する JSON ファイルのパスを変更する"""
+    global DATA_FILE
+    DATA_FILE = os.fspath(path)
+
+def reset_data_file():
+    """タスクを保存する JSON ファイルのパスを標準に戻す"""
+    set_data_file(DEFAULT_DATA_FILE)
+
+def get_data_file():
+    """現在のタスク保存ファイルのパスを返す"""
+    return DATA_FILE
 
 def save_tasks(tasks):
     """"タスクを JSON ファイルに保存する""" # --- (*2)
