@@ -17,13 +17,13 @@ python -m pip install -r requirements.txt
 ### macOS/Linuxの場合
 
 本リポジトリをcloneした後、パスに追加します。すると、`later args...`の形で利用できます。
-`~/.zshrc`や`~/.bashrc`に以下のコマンドを記述すると良いでしょう。
+`~/.zshrc`や`~/.bashrc`に以下のようなコマンドを記述すると良いでしょう。
+インストールパスは書き換えてください。
 
 ```sh
 LATER_PATH=/path/to/later-cli
+$LATER_PATH/later check
 PATH=$LATER_PATH:$PATH
-source '$HOME/.bash_completions/later.py.sh'
-$LATER_SCRIPT check
 ```
 
 ## 使い方
