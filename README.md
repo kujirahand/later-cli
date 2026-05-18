@@ -2,6 +2,18 @@
 
  CLIでタスクを管理するプログラム。
 
+## インストール
+
+```sh
+# Clone the repository
+git clone https://github.com/kujirahand/later-cli.git
+# Install dependencies
+python -m pip install -r requirements.txt
+```
+
+
+## 使い方
+
 ```text
 Usage:
   later.py <command> [<args>...]
@@ -26,3 +38,11 @@ Examples:
   later.py check                        # 期限切れタスクを表示
   later.py data                         # データの保存場所を表示
 ```
+
+## 詳しい使い方
+
+以下のマイナビ様の連載で、プログラムの使い方や、プログラムの詳しい解説を掲載しています。
+
+- https://news.mynavi.jp/techplus/article/zeropython-138/
+
+
