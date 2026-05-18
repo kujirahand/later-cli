@@ -17,11 +17,13 @@ def calc_due_date(due: str) -> datetime:
     """期限の表現を解析して、通知日時を計算する"""
     now = datetime.now()
     normalized = due.strip().lower()
-    if normalized == "明日":
+    if normalized == "now" or normalized == "すぐ" or normalized == "今":
+        return now
+    if normalized == "明日" or normalized == "tomorrow":
         return (now + timedelta(days=1)).replace(hour=8, minute=0, second=0, microsecond=0)
     if normalized == "明後日":
         return (now + timedelta(days=2)).replace(hour=8, minute=0, second=0, microsecond=0)
-    if normalized == "来週":
+    if normalized == "来週" or normalized == "nextweek":
         return (now + timedelta(days=7)).replace(hour=8, minute=0, second=0, microsecond=0)
     match = re.fullmatch(r"(\d+)([dh日])", normalized)
     if not match:
@@ -46,6 +48,8 @@ def add(due: str, task: str):
       later.py add "明日" "明日のタスク" ... Add tomorrow 8am task
       later.py add "明後日" "明後日のタスク" ... Add the day after tomorrow 8am task
       later.py add "来週" "来週のタスク" ... Add next week 8am task
+      later.py add now "今すぐやるタスク" ... Add now task
+      later.py add 今 "今すぐやるタスク" ... Add now task
     """
     tasks = load_tasks()
     notify_at = calc_due_date(due)
