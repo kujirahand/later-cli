@@ -10,9 +10,8 @@
 # リポジトリを取ってくる
 git clone https://github.com/kujirahand/later-cli.git
 cd later-cli
-# 依存をインストールして、シェル補完をインストール
+# 依存をインストール
 python -m pip install -r requirements.txt
-python later.py --install-completion
 ```
 
 ### macOS/Linuxの場合

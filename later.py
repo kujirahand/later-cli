@@ -11,7 +11,7 @@ from rich.table import Table
 from storage import load_tasks, save_tasks, get_data_file, reset_data_file, set_data_file
 
 # TyperやConsoleのインスタンスを作成
-app = typer.Typer(no_args_is_help=True)
+app = typer.Typer(no_args_is_help=True,add_completion=False)
 console = Console()
 
 @app.callback()
