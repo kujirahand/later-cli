@@ -44,17 +44,18 @@ Commands:
   --help        Show this help message
 
 Examples:
-  later.py add "3d" "レポート提出"                # 3日後のタスクを追加
-  later.py add "10h" "打ち合わせ"               # 10時間後のタスクを追加
-  later.py add "明日" "明日のタスク"              # 明日の午前8時のタスクを追加
-  later.py add "明後日" "明後日のタスク"            # 明後日の午前8時のタスクを追加
-  later.py add "来週" "来週のタスク"              # 来週の月曜日の午前8時のタスクを追加
+  later.py add "3d" "レポート提出"        # 3日後のタスクを追加
+  later.py add "10h" "打ち合わせ"         # 10時間後のタスクを追加
+  later.py add "明日" "明日のタスク"        # 明日の午前8時のタスクを追加
+  later.py add "明後日" "明後日のタスク"    # 明後日の午前8時のタスクを追加
+  later.py add "来週" "来週のタスク"       # 来週の月曜日の午前8時のタスクを追加
   later.py show                         # 全タスク一覧を表示
   later.py delete 1                     # 番号1のタスクを削除
   later.py clear                        # 期限切れタスクを削除
   later.py check                        # 期限切れタスクを表示
   later.py info                         # データの保存場所を表示
   later.py --file /tmp/tasks.json add now "テスト" # 指定したファイルにタスクを追加
+```
 
 ## 開発者向け (just)
 
