@@ -55,7 +55,20 @@ Examples:
   later.py check                        # 期限切れタスクを表示
   later.py info                         # データの保存場所を表示
   later.py --file /tmp/tasks.json add now "テスト" # 指定したファイルにタスクを追加
-```
+
+## 開発者向け (just)
+
+本プロジェクトではタスクランナーとして [just](https://github.com/casey/just) を導入しています。開発時のテストやコード品質の管理（Lint/Format）に利用できます。インストール方法は [justのGitHubリポジトリ](https://github.com/casey/just#installation) をご参照ください。
+
+### justのコマンド一覧
+
+プロジェクトのルートディレクトリで以下のコマンドを実行できます。
+
+- **`just`** または **`just --list`**: 利用可能なコマンドの一覧を表示します。
+- **`just install`**: 依存関係パッケージ（pytest, black, ruff 等）をインストールします。
+- **`just test`**: `pytest` を使用してテストを実行します。
+- **`just lint`**: `ruff` を使用してコードの静的解析（Linter）を実行します。
+- **`just format`**: `black` および `ruff` を使用してコードを自動整形（Formatter）します。
 
 ## 詳しい使い方
 
