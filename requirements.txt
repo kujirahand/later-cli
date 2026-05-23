@@ -1,4 +1,4 @@
 # Pythonパッケージをインストールする
 typer==0.25.1
 rich==15.0.0
-pytest==8.4.2
+pytest==9.0.3
