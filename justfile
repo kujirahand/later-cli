@@ -6,3 +6,11 @@ install:
 
 test:
     python -m pytest
+
+lint:
+    ruff check .
+
+format:
+    black .
+    ruff format .
+

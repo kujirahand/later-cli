@@ -1,18 +1,24 @@
 #!/usr/bin/env python
-""" CLIでタスクを管理するプログラム """
+"""CLIでタスクを管理するプログラム"""
 
 from datetime import datetime, timedelta
 from pathlib import Path
 import re
 import typer
-import rich
 from rich.console import Console
 from rich.table import Table
-from storage import load_tasks, save_tasks, get_data_file, reset_data_file, set_data_file
+from storage import (
+    load_tasks,
+    save_tasks,
+    get_data_file,
+    reset_data_file,
+    set_data_file,
+)
 
 # TyperやConsoleのインスタンスを作成
-app = typer.Typer(no_args_is_help=True,add_completion=False)
+app = typer.Typer(no_args_is_help=True, add_completion=False)
 console = Console()
+
 
 @app.callback()
 def main(
@@ -28,6 +34,7 @@ def main(
     else:
         reset_data_file()
 
+
 def calc_due_date(due: str) -> datetime:
     """期限の表現を解析して、通知日時を計算する"""
     now = datetime.now()
@@ -35,18 +42,26 @@ def calc_due_date(due: str) -> datetime:
     if normalized == "now" or normalized == "すぐ" or normalized == "今":
         return now
     if normalized == "明日" or normalized == "tomorrow":
-        return (now + timedelta(days=1)).replace(hour=8, minute=0, second=0, microsecond=0)
+        return (now + timedelta(days=1)).replace(
+            hour=8, minute=0, second=0, microsecond=0
+        )
     if normalized == "明後日":
-        return (now + timedelta(days=2)).replace(hour=8, minute=0, second=0, microsecond=0)
+        return (now + timedelta(days=2)).replace(
+            hour=8, minute=0, second=0, microsecond=0
+        )
     if normalized == "来週" or normalized == "nextweek":
-        return (now + timedelta(days=7)).replace(hour=8, minute=0, second=0, microsecond=0)
+        return (now + timedelta(days=7)).replace(
+            hour=8, minute=0, second=0, microsecond=0
+        )
     match = re.fullmatch(r"(\d+)([dh日])", normalized)
     if not match:
         raise typer.BadParameter("期限は '3d' / '2h' の形式で指定してください。")
     amount = int(match.group(1))
     unit = match.group(2)
     if unit == "d":
-        return (now + timedelta(days=amount)).replace(hour=8, minute=0, second=0, microsecond=0)
+        return (now + timedelta(days=amount)).replace(
+            hour=8, minute=0, second=0, microsecond=0
+        )
     if unit == "h":
         return now + timedelta(hours=amount)
     return now
@@ -85,7 +100,9 @@ def show_tasks(tasks: list[dict], title: str):
     """タスクのリストを表形式で表示する"""
     if len(tasks) == 0:
         # タスクがない場合はメッセージを表示して終了
-        console.print("- [bold green]later:[/bold green] [blue]タスクはありません。[/blue]")
+        console.print(
+            "- [bold green]later:[/bold green] [blue]タスクはありません。[/blue]"
+        )
         return
     table = Table(title=title, show_lines=False)
     table.add_column("番号", justify="right")
@@ -102,16 +119,20 @@ def show():
     tasks = load_tasks()
     show_tasks(tasks, "■ 保存したタスク一覧")
 
+
 @app.command()
 def delete(number: int):
     """番号を指定してタスクを削除する (例: later.py delete 1)"""
     tasks = load_tasks()
     if number < 1 or number > len(tasks):
-        raise typer.BadParameter(f"番号は 1 から {len(tasks)} の範囲で指定してください。")
+        raise typer.BadParameter(
+            f"番号は 1 から {len(tasks)} の範囲で指定してください。"
+        )
     deleted_task = tasks.pop(number - 1)
     save_tasks(tasks)
     print(f"タスクを削除しました: {deleted_task['task']}")
     show()
+
 
 @app.command()
 def clear():
@@ -128,6 +149,7 @@ def clear():
     print(f"期限が過ぎたタスクを削除しました。残りのタスク数: {len(tasks_due)}")
     show()  # 更新後のタスクを表示
 
+
 @app.command()
 def check():
     """期限が来たタスクを表示する"""
@@ -140,11 +162,13 @@ def check():
             tasks_due.append(task)
     show_tasks(tasks_due, "■ 期限が来たタスク")
 
+
 @app.command("info")
 def info():
     """情報を表示"""
     print("タスクは以下のファイルに保存されています:")
     print(get_data_file())
+
 
 if __name__ == "__main__":
     app()
