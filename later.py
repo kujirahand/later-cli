@@ -4,6 +4,7 @@
 from datetime import datetime, timedelta
 import importlib.metadata
 import json
+import os
 from pathlib import Path
 import re
 import typer
@@ -20,6 +21,8 @@ from storage import (
     get_language,
     load_raw_data,
     save_raw_data,
+    get_db_file,
+    restore_tasks_from_events,
 )
 
 # Define the type for clear command targets
@@ -923,6 +926,127 @@ def set_config(key: str, value: str):
     save_raw_data(data)
 
     console.print(get_msg("set_success", key, str(parsed_value)))
+
+
+@app.command("sync")
+def sync():
+    """
+    Synchronize local events with the remote Web API.
+    """
+    import urllib.request
+    import urllib.error
+    import sqlite3
+
+    raw_data = load_raw_data()
+    api_endpoint = raw_data.get("api_endpoint")
+    api_key = raw_data.get("api_key")
+    last_sync = raw_data.get("api_updated_at", "")
+
+    if not api_endpoint or not api_key:
+        console.print("[red]Error: api_endpoint or api_key is not configured.[/red]")
+        console.print(
+            "Please set them using: [cyan]later set api_endpoint <url>[/cyan] and [cyan]later set api_key <key>[/cyan]"
+        )
+        raise typer.Exit(code=1)
+
+    db_path = get_db_file()
+    if not os.path.exists(db_path):
+        local_events = []
+    else:
+        conn = sqlite3.connect(db_path)
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='events'"
+            )
+            if not cursor.fetchone():
+                local_events = []
+            else:
+                cursor.execute(
+                    "SELECT event_id, task_id, json_str, timestamp FROM events ORDER BY event_id ASC"
+                )
+                local_events_rows = cursor.fetchall()
+                local_events = []
+                for row in local_events_rows:
+                    try:
+                        ev = json.loads(row[2])
+                        ev["event_id"] = row[0]
+                        local_events.append(ev)
+                    except Exception:
+                        continue
+        finally:
+            conn.close()
+
+    payload = {
+        "api_key": api_key,
+        "last_sync": last_sync,
+        "events": [
+            {k: v for k, v in ev.items() if k != "event_id"} for ev in local_events
+        ],
+    }
+
+    req = urllib.request.Request(
+        api_endpoint,
+        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        headers={"Content-Type": "application/json", "x-api-key": api_key},
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(req) as res:
+            res_data = json.loads(res.read().decode("utf-8"))
+    except urllib.error.URLError as e:
+        console.print(f"[red]Sync failed: HTTP connection error ({e.reason})[/red]")
+        raise typer.Exit(code=1)
+    except Exception as e:
+        console.print(f"[red]Sync failed: {str(e)}[/red]")
+        raise typer.Exit(code=1)
+
+    if res_data.get("status") != "success":
+        console.print(
+            f"[red]Sync failed: Server returned non-success status ({res_data.get('status')})[/red]"
+        )
+        raise typer.Exit(code=1)
+
+    # 1. Apply server changes
+    server_events = res_data.get("events", [])
+    restore_tasks_from_events(server_events)
+
+    # 2. Archive local events
+    if local_events:
+        conn = sqlite3.connect(db_path)
+        try:
+            cursor = conn.cursor()
+            for ev in local_events:
+                event_id = ev["event_id"]
+                task_id = ev["guid"]
+                json_str = json.dumps(
+                    {k: v for k, v in ev.items() if k != "event_id"},
+                    ensure_ascii=False,
+                )
+                timestamp = ev["timestamp"]
+
+                cursor.execute(
+                    "INSERT INTO events_logs (event_id, task_id, json_str, timestamp) VALUES (?, ?, ?, ?)",
+                    (event_id, task_id, json_str, timestamp),
+                )
+                cursor.execute("DELETE FROM events WHERE event_id = ?", (event_id,))
+            conn.commit()
+        finally:
+            conn.close()
+
+    # 3. Update sync timestamp
+    new_sync_time = res_data.get(
+        "timestamp", datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    )
+    raw_data = load_raw_data()
+    raw_data["api_updated_at"] = new_sync_time
+    save_raw_data(raw_data)
+
+    console.print(
+        f"[green]Synchronization completed successfully! (Applied {len(server_events)} server changes)[/green]"
+    )
+    show()
 
 
 if __name__ == "__main__":
