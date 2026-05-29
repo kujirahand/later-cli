@@ -65,6 +65,7 @@ later-cli/
 `later.py` に実装されている `calc_due_date(due: str)` は、以下のような表現をパースして `datetime` オブジェクトに変換します。
 
 - **即時**: `now` / `すぐ` / `今` $\rightarrow$ 現在日時そのもの
+- **今日**: `今日` / `本日` $\rightarrow$ 本日の午前8時（`08:00:00`）
 - **明日**: `明日` / `tomorrow` $\rightarrow$ 翌日の午前8時（`08:00:00`）
 - **明後日**: `明後日` $\rightarrow$ 2日後の午前8時（`08:00:00`）
 - **来週**: `来週` / `nextweek` $\rightarrow$ 7日後の午前8時（`08:00:00`）

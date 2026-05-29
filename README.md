@@ -82,6 +82,7 @@ Commands:
 Examples:
   later.py add "3d" "レポート提出"        # 3日後のタスクを追加
   later.py add "10h" "打ち合わせ"         # 10時間後のタスクを追加
+  later.py add "今日" "今日のタスク"         # 本日の午前8時のタスクを追加
   later.py add "明日" "明日のタスク"        # 明日の午前8時のタスクを追加
   later.py add "明日20時" "明日20時"       # 明日20時のタスクを追加
   later.py add "明後日" "明後日のタスク"    # 明後日の午前8時のタスクを追加

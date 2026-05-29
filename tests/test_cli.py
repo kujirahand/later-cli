@@ -138,3 +138,14 @@ def test_add_with_full_date(invoke, taskfile):
     assert len(tasks) == 1
     assert tasks[0]["task"] == "年明示の予定"
     assert tasks[0]["date"] == "2026-05-25 15:30:00"
+
+
+def test_add_with_today(invoke, taskfile):
+    result = invoke("add", "今日", "今日の朝の予定")
+    assert result.exit_code == 0, result.output
+    assert taskfile.exists()
+
+    tasks = json.loads(taskfile.read_text(encoding="utf-8"))
+    assert len(tasks) == 1
+    assert tasks[0]["task"] == "今日の朝の予定"
+    assert tasks[0]["date"].endswith("08:00:00")

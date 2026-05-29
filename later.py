@@ -61,6 +61,10 @@ def calc_due_date(due: str) -> datetime:
     normalized = due.strip().lower()
     if normalized == "now" or normalized == "すぐ" or normalized == "今":
         return now
+    if normalized == "今日" or normalized == "本日":
+        return now.replace(
+            hour=8, minute=0, second=0, microsecond=0
+        )
     if normalized == "明日" or normalized == "tomorrow":
         return (now + timedelta(days=1)).replace(
             hour=8, minute=0, second=0, microsecond=0
