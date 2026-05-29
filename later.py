@@ -2,6 +2,7 @@
 """CLIでタスクを管理するプログラム"""
 
 from datetime import datetime, timedelta
+import importlib.metadata
 from pathlib import Path
 import re
 import typer
@@ -22,7 +23,12 @@ console = Console()
 
 
 def get_version() -> str:
-    """pyproject.tomlからバージョン情報を取得する"""
+    """パッケージのメタデータ、またはpyproject.tomlからバージョン情報を取得する"""
+    try:
+        return importlib.metadata.version("later-cli")
+    except importlib.metadata.PackageNotFoundError:
+        pass
+
     pyproject_path = Path(__file__).parent / "pyproject.toml"
     if not pyproject_path.exists():
         return "unknown"

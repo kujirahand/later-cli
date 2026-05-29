@@ -2,6 +2,8 @@
 
 CLIでタスクを管理するシンプルなプログラムです。
 
+[![PyPI version](https://img.shields.io/pypi/v/later-cli.svg)](https://pypi.org/project/later-cli/)
+
 ![ターミナルで使えるシンプルなタスク管理ツール「later」](doc/preview.png)
 
 - [簡単な使い方はこちら](./doc/README.md) をご覧ください。
@@ -9,6 +11,14 @@ CLIでタスクを管理するシンプルなプログラムです。
 ## インストール
 
 実行にはPython 3.10以降が必要です。
+
+### PyPIからインストール
+
+PyPIに公開されているパッケージをインストールするには、以下のコマンドを実行してください。すると、`later` コマンドが利用可能になります。
+
+```sh
+pip install later-cli
+```
 
 ### GitHubリポジトリからインストール
 
