@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 import re
 import typer
+from rich import box
 from rich.console import Console
 from rich.table import Table
 from storage import (
@@ -251,7 +252,24 @@ def add(due: str, task: str):
             added_idx = idx
             break
 
-    print(f"{added_idx}番目にタスクを追加しました: {task} (通知日時: {notify_at_s})")
+    # 追加成功テーブルを作成
+    added_table = Table(
+        title="[bold yellow]新しいタスクを追加しました！[/]",
+        box=box.ROUNDED,
+        show_header=True,
+        header_style="bold magenta",
+    )
+    added_table.add_column("追加位置", justify="center")
+    added_table.add_column("タスク内容", style="cyan")
+    added_table.add_column("通知日時", style="green")
+
+    added_table.add_row(
+        f"[bold green]{added_idx}[/]",
+        task,
+        notify_at_s
+    )
+    console.print(added_table)
+    console.print()  # 改行を挟む
     show_tasks(sorted_tasks, "■ 保存したタスク一覧")
 
 
@@ -312,7 +330,10 @@ def show_tasks(tasks: list[dict], title: str):
             "- [bold green]later:[/bold green] [blue]タスクはありません。[/blue]"
         )
         return
-    table = Table(title=title, show_lines=False)
+    table = Table(
+        title=title,
+        show_lines=False,
+        box=box.ROUNDED)
     table.add_column("番号", justify="right")
     table.add_column("タスク", style="red")
     table.add_column("期限", style="green")
