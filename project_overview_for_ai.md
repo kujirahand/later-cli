@@ -156,8 +156,9 @@ later-cli/
   - 安全のため、予約済みキーである `"tasks"` への設定は制限されます。
   - 値が `true`, `false`, 数値などの形式の場合、自動的に適切なデータ型にパースされて JSON に保存されます。
 - `sync`: 設定された `api_endpoint` に対し、最後に同期した日時（`api_updated_at`）以降のローカルイベントを送信し、APIから受信した最新のイベントをローカルタスクへ適用して同期します。
-  - 同期には `api_key` が必須で、`X-API-KEY` ヘッダーによる認証を行います。
+  - 同期には `api_key` が必須で、`X-API-KEY` / `Authorization` ヘッダーによる認証を行います。
   - 同期が正常に終了すると、送信されたローカルイベントは `events.db` の `events` テーブルから `events_logs` テーブルへアーカイブ（退避）され、同期日時 `api_updated_at` が更新されます。
+  - **サブコマンド `hello` (`later sync hello`)**: APIとの接続および認証疎通テストを実行します（`POST /api.php?method=hello` への送信検証）。有効な `api_key` が設定されている必要があり、サーバーから応答として `{"message": "Hello, Later API!"}` が正しく返ってきた場合に接続成功を表示します。
 
 
 
@@ -210,9 +211,83 @@ just lint
 just format
 ```
 
-## データベースの同期(開発中)
+## APIの同期について
 
-APIを介して、データを同期できる仕組みにする
+`sync` コマンドは、ローカルのイベントとAPIを双方向で同期するためのコマンドです。同期の際には、ローカルのイベント（タスクの追加、更新、削除など）をAPIに送信し、APIから最新のイベントを受信してローカルのタスクデータに反映させます。
 
-https://github.com/kujirahand/later-api
+APIのエンドポイントは、`tasks.json` の `api_endpoint` キーで指定されており、APIキーは `api_key` キーで指定されます。APIとの通信には、HTTPリクエストを使用し、APIキーは `X-API-KEY` ヘッダーに含めて認証します。
 
+### イベントの記録API
+
+現在の端末で later-cli を使用しているユーザーが、イベントをWebに記録するためのAPIです。
+
+- エントリポイント: POST /api.php?method=post
+
+JSON形式で、次のようなリクエストを送信する
+
+```json
+{
+    "events" : [
+        {
+            "event": "add",
+            "guid": "123e4567-e89b-12d3-a456-426614174000",
+            "timestamp": "2026-05-29 14:00:00",
+            "task": "タスクの内容",
+            "status": "done",
+            "date": "2026-05-30 08:00:00"
+        },
+        {
+            "event": "delete",
+            "guid": "123e4567-e89b-12d3-a456-426614174000",
+            "timestamp": "2026-05-29 14:00:00",
+            "task": "タスクの内容",
+            "status": "done",
+            "date": "2026-05-30 08:00:00"
+        }
+    ]
+}
+```
+
+上記のeventsの内容をユーザーのDBに保存する。APIキーが無効であれば、APIのリクエストを拒否する。
+
+### イベントの取得API
+
+別の端末で later-cli を使用しているユーザーが、APIからイベントを取得するためのAPIです。
+
+- エントリポイント /api.php?method=get
+
+JSON形式で、次のようなリクエストを送信する。
+
+```json
+{
+    "date_from": "2026-05-29 00:00:00",
+    "date_to": "2026-05-30 23:59:59"
+}
+```
+
+date_fromには、前回の同期日時を、date_toは、現在時刻を指定する。
+APIは、送信したイベントと同じ内容にJSONデータを返すので、これを元にして、tasks.jsonのタスクデータを更新する。APIキーが無効であれば、APIキーを指定するように促す。APIキーは、X-API-KEYヘッダーに含めて認証する。
+
+APIキーの形式は、`laterapi::xxx::xxxx`の形式であり、この形式に合致しないものであれば、正しいAPIキーを取得するように促す。
+
+### API認証テスト(hello)
+
+APIキーが有効であれば、APIのリクエストを処理するものとする。APIキーが無効であれば、APIのリクエストを拒否するものとする。
+
+- エントリポイント: /api.php?method=hello
+
+JSON形式で、次のようなリクエストを受け取る。
+
+```json
+{
+    "message": "Hello, Later API!"
+}
+```
+
+APIキーが有効であれば、次のようなJSON形式のレスポンスを返す。
+
+```json
+{
+    "message": "Hello, Later API!"
+}
+```

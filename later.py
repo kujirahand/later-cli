@@ -44,6 +44,10 @@ LIST_TARGETS = Literal[
 
 # Create Typer and Rich console instances
 app = typer.Typer(no_args_is_help=False, add_completion=True)
+sync_app = typer.Typer(
+    no_args_is_help=False, help="Synchronize tasks with remote Web API."
+)
+app.add_typer(sync_app, name="sync")
 console = Console()
 
 MESSAGES = {
@@ -480,19 +484,19 @@ def add(due: str, task: str):
       Add a task.
 
       Examples:
-    later.py add 3d "レポート提出" ... add task due in 3 days (default time is 8:00 AM)
-    later.py add 10h "打ち合わせ" ... add task due in 10 hours
-    later.py add now "今すぐやるタスク" ... add task due now
-    later.py add "3/10 15:30" "特定の日のタスク" ... add task due on March 10 at 15:30 (this year or next year if date has passed)
-          later.py add 明日 "明日のタスク" ... task due tomorrow morning
-          later.py add 明日10時 "明日10時のタスク" ... task due tomorrow at 10:00
-          later.py add 明後日 "明後日のタスク" ... task due the morning of the day after tomorrow
-          later.py add 来週 "来週のタスク" ... task due next Monday morning
-          later.py add 今 "今すぐやるタスク" ... task due immediately
-          later.py add 20時 "今日の20時のタスク" ... task due today at 20:00
-          later.py add 来週月曜 "レポート提出" ... task due next Monday morning
-          later.py add 水曜日" "ゴミ出し" ... task due next Wednesday morning
-          later.py add 来月第二月曜 "月次報告" ... task due on the second Monday of next month
+        later add 3d "レポート提出" ... add task due in 3 days (default time is 8:00 AM)
+        later add 10h "打ち合わせ" ... add task due in 10 hours
+        later add now "今すぐやるタスク" ... add task due now
+        later add "3/10 15:30" "特定の日のタスク" ... add task due on March 10 at 15:30 (this year or next year if date has passed)
+        later add 明日 "明日のタスク" ... task due tomorrow morning
+        later add 明日10時 "明日10時のタスク" ... task due tomorrow at 10:00
+        later add 明後日 "明後日のタスク" ... task due the morning of the day after tomorrow
+        later add 来週 "来週のタスク" ... task due next Monday morning
+        later add 今 "今すぐやるタスク" ... task due immediately
+        later add 20時 "今日の20時のタスク" ... task due today at 20:00
+        later add 来週月曜 "レポート提出" ... task due next Monday morning
+        later add 水曜日" "ゴミ出し" ... task due next Wednesday morning
+        later add 来月第二月曜 "月次報告" ... task due on the second Monday of next month
     """
     tasks = load_tasks()
     notify_at = calc_due_date(due)
@@ -670,7 +674,7 @@ def ls_todo():
 
 @app.command()
 def delete(number: int):
-    """Delete a task by number (e.g. later.py delete 1)."""
+    """Delete a task by number (e.g. later delete 1)."""
     tasks = load_tasks()
     if number < 1 or number > len(tasks):
         raise typer.BadParameter(get_msg("err_idx_range", len(tasks)))
@@ -833,7 +837,7 @@ def language_cmd(lang: str):
 @app.command()
 def done(number: int):
     """
-    Mark a task as done (e.g. later.py done 1).
+    Mark a task as done (e.g. later done 1).
     """
     tasks = load_tasks()
     if number < 1 or number > len(tasks):
@@ -848,7 +852,7 @@ def done(number: int):
 @app.command()
 def todo(number: int):
     """
-    Mark a task as todo (e.g. later.py todo 1).
+    Mark a task as todo (e.g. later todo 1).
     """
     tasks = load_tasks()
     if number < 1 or number > len(tasks):
@@ -928,11 +932,24 @@ def set_config(key: str, value: str):
     console.print(get_msg("set_success", key, str(parsed_value)))
 
 
-@app.command("sync")
-def sync():
+def get_api_url(endpoint: str, method: str) -> str:
+    """
+    Construct API URL by ensuring correct combining of api.php?method=xxx
+    """
+    base = endpoint.split("?")[0]
+    if "api.php" in base:
+        return f"{base}?method={method}"
+    else:
+        return f"{base.rstrip('/')}/api.php?method={method}"
+
+
+@sync_app.callback(invoke_without_command=True)
+def sync(ctx: typer.Context):
     """
     Synchronize local events with the remote Web API.
     """
+    if ctx.invoked_subcommand is not None:
+        return
     import urllib.request
     import urllib.error
     import sqlite3
@@ -949,7 +966,18 @@ def sync():
         )
         raise typer.Exit(code=1)
 
+    # API key format validation: laterapi::xxx::xxxx
+    parts = api_key.split("::")
+    if len(parts) != 3 or parts[0] != "laterapi" or not parts[1] or not parts[2]:
+        console.print("[red]Error: Invalid API Key format.[/red]")
+        console.print(
+            "Please obtain a valid API key (format: [cyan]laterapi::xxx::xxxx[/cyan])."
+        )
+        raise typer.Exit(code=1)
+
     db_path = get_db_file()
+
+    # 1. Collect unsynced local events
     if not os.path.exists(db_path):
         local_events = []
     else:
@@ -977,43 +1005,73 @@ def sync():
         finally:
             conn.close()
 
-    payload = {
-        "api_key": api_key,
-        "last_sync": last_sync,
-        "events": [
-            {k: v for k, v in ev.items() if k != "event_id"} for ev in local_events
-        ],
-    }
+    post_url = get_api_url(api_endpoint, "post")
+    get_url = get_api_url(api_endpoint, "get")
 
-    req = urllib.request.Request(
-        api_endpoint,
-        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-        headers={"Content-Type": "application/json", "x-api-key": api_key},
-        method="POST",
-    )
-
-    try:
-        with urllib.request.urlopen(req) as res:
-            res_data = json.loads(res.read().decode("utf-8"))
-    except urllib.error.URLError as e:
-        console.print(f"[red]Sync failed: HTTP connection error ({e.reason})[/red]")
-        raise typer.Exit(code=1)
-    except Exception as e:
-        console.print(f"[red]Sync failed: {str(e)}[/red]")
-        raise typer.Exit(code=1)
-
-    if res_data.get("status") != "success":
-        console.print(
-            f"[red]Sync failed: Server returned non-success status ({res_data.get('status')})[/red]"
-        )
-        raise typer.Exit(code=1)
-
-    # 1. Apply server changes
-    server_events = res_data.get("events", [])
-    restore_tasks_from_events(server_events)
-
-    # 2. Archive local events
+    # Step 1: Record local events if any
     if local_events:
+        post_payload = {
+            "events": [
+                {k: v for k, v in ev.items() if k != "event_id"} for ev in local_events
+            ]
+        }
+
+        req_post = urllib.request.Request(
+            post_url,
+            data=json.dumps(post_payload, ensure_ascii=False).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "X-API-KEY": api_key,
+                "Authorization": f"Bearer {api_key}",
+            },
+            method="POST",
+        )
+
+        try:
+            with urllib.request.urlopen(req_post) as res:
+                res_content = res.read().decode("utf-8")
+                try:
+                    res_data = json.loads(res_content)
+                except Exception:
+                    res_data = {}
+        except urllib.error.HTTPError as e:
+            try:
+                err_content = e.read().decode("utf-8")
+                err_data = json.loads(err_content)
+                err_msg = err_data.get("error", err_data.get("message", e.reason))
+            except Exception:
+                err_msg = e.reason
+
+            if e.code in (401, 403):
+                console.print(
+                    f"[red]Sync (Post) failed: Authentication error. Please set a valid API key. ({err_msg})[/red]"
+                )
+            else:
+                console.print(
+                    f"[red]Sync (Post) failed: HTTP error {e.code} ({err_msg})[/red]"
+                )
+            raise typer.Exit(code=1)
+        except urllib.error.URLError as e:
+            console.print(
+                f"[red]Sync (Post) failed: HTTP connection error ({e.reason})[/red]"
+            )
+            raise typer.Exit(code=1)
+        except Exception as e:
+            console.print(f"[red]Sync (Post) failed: {str(e)}[/red]")
+            raise typer.Exit(code=1)
+
+        # Optional: Check if response has status and is not success
+        if (
+            isinstance(res_data, dict)
+            and "status" in res_data
+            and res_data["status"] != "success"
+        ):
+            console.print(
+                f"[red]Sync (Post) failed: Server returned non-success status ({res_data.get('status')})[/red]"
+            )
+            raise typer.Exit(code=1)
+
+        # Archive local events
         conn = sqlite3.connect(db_path)
         try:
             cursor = conn.cursor()
@@ -1035,18 +1093,160 @@ def sync():
         finally:
             conn.close()
 
-    # 3. Update sync timestamp
-    new_sync_time = res_data.get(
-        "timestamp", datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    # Step 2: Fetch events from API
+    date_from = last_sync if last_sync else "2000-01-01 00:00:00"
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    date_to = now_str
+
+    get_payload = {"date_from": date_from, "date_to": date_to}
+
+    req_get = urllib.request.Request(
+        get_url,
+        data=json.dumps(get_payload, ensure_ascii=False).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "X-API-KEY": api_key,
+            "Authorization": f"Bearer {api_key}",
+        },
+        method="POST",
     )
+
+    try:
+        with urllib.request.urlopen(req_get) as res:
+            res_content = res.read().decode("utf-8")
+            res_data = json.loads(res_content)
+    except urllib.error.HTTPError as e:
+        try:
+            err_content = e.read().decode("utf-8")
+            err_data = json.loads(err_content)
+            err_msg = err_data.get("error", err_data.get("message", e.reason))
+        except Exception:
+            err_msg = e.reason
+
+        if e.code in (401, 403):
+            console.print(
+                f"[red]Sync (Get) failed: Authentication error. Please set a valid API key. ({err_msg})[/red]"
+            )
+        else:
+            console.print(
+                f"[red]Sync (Get) failed: HTTP error {e.code} ({err_msg})[/red]"
+            )
+        raise typer.Exit(code=1)
+    except urllib.error.URLError as e:
+        console.print(
+            f"[red]Sync (Get) failed: HTTP connection error ({e.reason})[/red]"
+        )
+        raise typer.Exit(code=1)
+    except Exception as e:
+        console.print(f"[red]Sync (Get) failed: {str(e)}[/red]")
+        raise typer.Exit(code=1)
+
+    # API key invalid check or general error
+    if isinstance(res_data, dict) and "error" in res_data:
+        console.print(f"[red]Sync (Get) failed: {res_data['error']}[/red]")
+        raise typer.Exit(code=1)
+
+    if isinstance(res_data, list):
+        server_events = res_data
+    elif isinstance(res_data, dict):
+        server_events = res_data.get("events", [])
+    else:
+        server_events = []
+
+    restore_tasks_from_events(server_events)
+
+    # 3. Update sync timestamp in config
     raw_data = load_raw_data()
-    raw_data["api_updated_at"] = new_sync_time
+    raw_data["api_updated_at"] = date_to
     save_raw_data(raw_data)
 
     console.print(
         f"[green]Synchronization completed successfully! (Applied {len(server_events)} server changes)[/green]"
     )
     show()
+
+
+@sync_app.command("hello")
+def hello():
+    """
+    Test API connection and authentication using method=hello.
+    """
+    import urllib.request
+    import urllib.error
+
+    raw_data = load_raw_data()
+    api_endpoint = raw_data.get("api_endpoint")
+    api_key = raw_data.get("api_key")
+
+    if not api_endpoint or not api_key:
+        console.print("[red]Error: api_endpoint or api_key is not configured.[/red]")
+        console.print(
+            "Please set them using: [cyan]later set api_endpoint <url>[/cyan] and [cyan]later set api_key <key>[/cyan]"
+        )
+        raise typer.Exit(code=1)
+
+    # API key format validation: laterapi::xxx::xxxx
+    parts = api_key.split("::")
+    if len(parts) != 3 or parts[0] != "laterapi" or not parts[1] or not parts[2]:
+        console.print("[red]Error: Invalid API Key format.[/red]")
+        console.print(
+            "Please obtain a valid API key (format: [cyan]laterapi::xxx::xxxx[/cyan])."
+        )
+        raise typer.Exit(code=1)
+
+    hello_url = get_api_url(api_endpoint, "hello")
+
+    payload = {"message": "Hello, Later API!"}
+
+    req = urllib.request.Request(
+        hello_url,
+        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "X-API-KEY": api_key,
+            "Authorization": f"Bearer {api_key}",
+        },
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(req) as res:
+            res_content = res.read().decode("utf-8")
+            res_data = json.loads(res_content)
+    except urllib.error.HTTPError as e:
+        try:
+            err_content = e.read().decode("utf-8")
+            err_data = json.loads(err_content)
+            err_msg = err_data.get("error", err_data.get("message", e.reason))
+        except Exception:
+            err_msg = e.reason
+
+        if e.code in (401, 403):
+            console.print(
+                f"[red]Authentication failed: Invalid API Key. ({err_msg})[/red]"
+            )
+        else:
+            console.print(
+                f"[red]API Test failed: HTTP error ({e.code}) ({err_msg})[/red]"
+            )
+        raise typer.Exit(code=1)
+    except urllib.error.URLError as e:
+        console.print(f"[red]API Test failed: HTTP connection error ({e.reason})[/red]")
+        raise typer.Exit(code=1)
+    except Exception as e:
+        console.print(f"[red]API Test failed: {str(e)}[/red]")
+        raise typer.Exit(code=1)
+
+    if isinstance(res_data, dict) and res_data.get("message") == "Hello, Later API!":
+        console.print(
+            "[green]API Authentication successful! Response received:[/green]"
+        )
+        console.print(f"Message: {res_data.get('message')}")
+    else:
+        console.print(
+            "[red]API Test failed: Invalid response received from server.[/red]"
+        )
+        raise typer.Exit(code=1)
 
 
 if __name__ == "__main__":
