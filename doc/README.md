@@ -1,109 +1,155 @@
-# later-cli の簡単な使い方 (Japanese)
+# Quick Start Guide for later-cli
 
-later-cliは、ターミナルで簡単にタスクを管理できるシンプルなCLIツールです。基本的な使い方を説明します。
+`later-cli` is a simple CLI tool for managing tasks in your terminal. This guide explains the basic usage.
 
-インストールは、[こちら](https://github.com/kujirahand/later-cli/)を参照してください。
+For installation instructions, please refer to [here](https://github.com/kujirahand/later-cli/).
 
-## 0. 言語を日本語に変更
+## 0. Set Display Language
+
+By default, the display language is English. If you want to change the display language to Japanese, run the following command:
 
 ```sh
 later language ja
 ```
 
-## 1. タスクの追加
-
-タスクを追加するには、以下のように`add`コマンド(または`a`コマンド)を使用します。
+To set it back to English:
 
 ```sh
-# 簡単な追加方法
-later a 3d "レポート提出"    # 3日後の午前8時のタスクを追加
-later a 10h "ミーティング"    # 10時間後のタスクを追加
-# 日本語を指定した追加方法
-later a "明日" "タスクの内容"
-later a "明後日" "タスクの内容"
-later a "来週水曜" "タスクの内容"
-later a "来月第一月曜" "タスクの内容"
-later a "今日12時" "タスクの内容"
-# 日時の指定をして追加する方法
-later a "5/25" "タスクの内容"
-later a "12月3日 15:30" "タスクの内容"
+later language en
 ```
 
-## 2. タスクの表示
+## 1. Adding Tasks
 
-タスクを表示するには、`list`コマンド(または`ls`、`show`)を使用します。
+To add a task, use the `add` command (or its alias `a`).
+
+```sh
+# Easy offset format
+later a 3d "Submit report"       # Adds a task for 3 days later at 8:00 AM
+later a 10h "Meeting"            # Adds a task for 10 hours later
+
+# Natural language format
+later a "tomorrow" "Task contents"
+later a "day after tomorrow" "Task contents"
+later a "next Wednesday" "Task contents"
+later a "next month first Monday" "Task contents"
+later a "today 12:00" "Task contents"
+
+# Specific date/time format
+later a "5/25" "Task contents"             # May 25th at 8:00 AM
+later a "Dec 3 15:30" "Task contents"      # December 3rd at 3:30 PM
+```
+
+## 2. Viewing Tasks
+
+To view your tasks in a table, use the `list` command (or its aliases `ls` or `show`).
 
 ```sh
 later list
 ```
 
-## 3. タスクの削除
+## 3. Deleting Tasks
 
-タスクを削除するには、`delete`コマンド(または`del`)を使用します。削除したいタスクの番号を指定してください。
+To delete a task, use the `delete` command (or its alias `del`) followed by the task number displayed in the list.
 
 ```sh
-later delete 1  # 1番目のタスクを削除
+later delete 1  # Deletes the 1st task in the list
 ```
 
-## 4. 期限切れタスクの一括削除
+## 4. Clearing Overdue Tasks
 
-期限切れタスクを一括で削除するには、`clear`コマンドを使用します。
+To clear all overdue tasks at once, use the `clear` command.
 
 ```sh
 later clear
 ```
 
-## 5. 期限切れタスクの表示
+## 5. Checking Overdue Tasks
 
-期限切れタスクを表示するには、`check`コマンドを使用します。
+To display only the overdue tasks, use the `check` command.
 
 ```sh
 later check
 ```
 
-## 6. 週間予定のカレンダー表示
+## 6. Calendar View for Weekly Schedule
 
-週間予定をカレンダー形式で表示するには、`cal`コマンドを使用します。
+To view your weekly schedule in a calendar format, use the `cal` command.
 
 ```sh
 later cal
 ```
 
-![週間カレンダーを表示できる](later-cal.png)
+![Weekly Calendar](later-cal.png)
 
-特定の日数を指定したい場合は `--d`オプションを使用します。
+If you want to specify a custom number of days to display in the calendar, use the `--d` option:
 
 ```sh
-# 30日間の予定をカレンダー形式で表示
+# Display schedule for the next 30 days in calendar format
 later cal --d 30
 ```
 
-なお、30日の場合は、`later cal30` と短縮コマンドを用意しています。
+You can also use the shorthand command `later cal30` to quickly display a 30-day calendar view.
 
-## 7. データファイルの保存場所の確認
+## 7. Checking Data File Location
 
-タスクデータが保存されているJSONファイルの絶対パスを確認するには、`info`コマンドを使用します。
+To check the absolute file path where your task JSON data is saved, use the `info` command.
 
 ```sh
 later info
 ```
 
-## 8. 状態を変更する
+## 8. Changing Task Status
 
-タスクの状態を「完了(done)」に変更するには、`done`コマンドを使用します。番号を指定してください。
-
-```sh
-later done 1  # 1番目のタスクを完了にマーク
-```
-
-完了にしたタスクを一括で削除するには、`clear --target=done`コマンドを使用します。
+To mark a task as "done", use the `done` command followed by the task number:
 
 ```sh
-later clear --target=done  # 完了タスクを一括削除
+later done 1  # Marks the 1st task as done
 ```
 
-タスクの状態を「未完了(todo)」に変更するには、`todo`コマンドを使用します。番号を指定してください。
+To clear all completed (done) tasks at once, use the `clear --target=done` command:
 
 ```sh
-later todo 1  # 1番目のタスクを未完了にマーク
+later clear --target=done  # Clears all completed tasks
 ```
+
+To mark a completed task back to "todo" (incomplete), use the `todo` command followed by the task number:
+
+```sh
+later todo 1  # Marks the 1st task as todo
+```
+
+## 9. API Synchronization (sync)
+
+You can synchronize your tasks between multiple devices or back them up to a remote server. Running synchronization pushes your local event logs (such as task creation, deletion, or status updates) to the API and pulls the latest remote events to update your local tasks.
+
+### Synchronization Configuration
+
+To configure synchronization, you need to set the API endpoint URL and your API key in the configuration metadata of `tasks.json` using the `set` command:
+
+```sh
+# Set the remote API endpoint URL
+later set api_endpoint "https://example.com"
+
+# Set your API key (must follow format: laterapi::xxx::xxxx)
+later set api_key "laterapi::your_api_key_here"
+```
+
+### Connection & Authentication Test (sync hello)
+
+You can test if your remote endpoint and API key are configured correctly by running the `sync hello` command:
+
+```sh
+later sync hello
+```
+
+If successful, a connection success message along with the response message from the server will be displayed. If a connection error or authentication failure occurs, the detailed reasons will be displayed.
+
+### Performing Synchronization (sync)
+
+To run actual bi-directional synchronization, execute the `sync` command:
+
+```sh
+later sync
+```
+
+This will record unsynced local events to the remote server, fetch remote changes since your last synchronization, apply those remote events to your local task file, and record the successful synchronization timestamp.

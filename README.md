@@ -2,15 +2,13 @@
 
 [![PyPI version](https://img.shields.io/pypi/v/later-cli.svg)](https://pypi.org/project/later-cli/)
 
-A CLI task management tool. CLIでタスクを管理するシンプルなプログラムです。
+A CLI task management tool. It is a simple program for managing tasks from the command line.
 
-![ターミナルで使えるシンプルなタスク管理ツール「later」](https://raw.githubusercontent.com/kujirahand/later-cli/refs/heads/main/doc/preview.png)
-
-- [日本語の使い方はこちら](https://github.com/kujirahand/later-cli/tree/main/doc) をご覧ください。
+![A simple task management tool for the terminal: later](https://raw.githubusercontent.com/kujirahand/later-cli/refs/heads/main/doc/preview.png)
 
 ## Installation
 
-Requires Python 3.10 or later. (実行にはPython 3.10以降が必要です。)
+Requires Python 3.10 or later.
 
 ### Install from PyPI
 
@@ -24,7 +22,7 @@ Then you can run the `later` command in your terminal.
 
 ### Install from GitHub Repository
 
-パッケージマネージャーである [uv](https://github.com/astral-sh/uv) を使用してセットアップを行います。以下のコマンドを実行するだけで自動的に仮想環境（`.venv`）が構築され、依存関係の同期が完了します。以下はuvをインストールするためのコマンドです。
+Use the package manager [uv](https://github.com/astral-sh/uv) for setup. Running the commands below automatically creates a virtual environment (`.venv`) and syncs dependencies. First, install `uv`:
 
 ```sh
 # Install uv
@@ -45,27 +43,52 @@ cd later-cli
 uv sync
 ```
 
-### macOS/Linuxの場合
+### Quick Usage
 
-本リポジトリをcloneした後、パスにスクリプトのディレクトリを追加します。すると、`later args...` の形でどこからでも利用できます。
-ラッパースクリプト `later` は、`.venv` が存在すれば自動的に `uv run` を経由して実行されます。
+A short tutorial is available below.
 
-`~/.zshrc` や `~/.bashrc` に以下の設定を追加すると便利です。
+- [English guide](https://github.com/kujirahand/later-cli/tree/main/doc/README.md)
+- [Japanese guide](https://github.com/kujirahand/later-cli/tree/main/doc/README-ja.md)
+
+Basic usage:
 
 ```sh
-LATER_CLI_PATH="/path/to/later-cli"  # later-cliのパスに置き換える
+# Adds a task for 3 days later at 8:00 AM
+later add 3d "Submit report"  
+# Check tasks
+later list
+# Done the first task
+later done 1
+# Clear the done task
+later clear --target=done
+# Delete the done task
+later list
+later delete 1
+```
+
+## Setup to Check Tasks at Shell Startup
+
+### For macOS/Linux
+
+After cloning this repository, add the script directory to your `PATH`. Then you can run `later args...` from anywhere.
+The wrapper script `later` automatically runs via `uv run` when `.venv` exists.
+
+It is convenient to add the following settings to `~/.zshrc` or `~/.bashrc`:
+
+```sh
+LATER_CLI_PATH="/path/to/later-cli"  # replace with your later-cli path
 PATH="$LATER_CLI_PATH:$PATH"
-# 起動時に期限の来たタスクをチェックする
+# Check due tasks at startup
 later check
 ```
 
-### Windowsの場合
+### For Windows
 
-WindowsのPowerShellを使う場合、ユーザーフォルダにある `~\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1` というファイル（`$PROFILE` の値）をテキストエディタで開いて、下記のような内容を追加します。なお、ファイルやフォルダがない場合は作成して追加する必要があります。
+When using Windows PowerShell, open `~\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1` (the value of `$PROFILE`) in a text editor and add the following lines. If the file or folder does not exist, create it first.
 
 ```powershell
-cd /path/to/later-cli  # later-cliのパスに置き換える
-uv run later.py check
+cd /path/to/later-cli  # replace with your later-cli path
+uv run later check
 ```
 
 ## How to Use later-cli
@@ -74,15 +97,15 @@ Please type `later --help` to see the available commands and options.
 
 ```text
 Usage:
-  later.py <command> [<args>...]
+  later <command> [<args>...]
 
 Commands:
-  add           Add a new task. Example: later.py add "3d" "Submit report"
+  add           Add a new task. Example: later add "3d" "Submit report"
   a             Alias for add (shorter command)
   list          Show all tasks
   ls            Alias for list (shorter command)
   show          Alias for list
-  delete        Delete a task by number. Example: later.py delete 1
+  delete        Delete a task by number. Example: later delete 1
   del           Alias for delete (shorter command)
   clear         Remove overdue tasks
   check         Show due tasks
@@ -90,80 +113,116 @@ Commands:
   info          Show the data file path
   version       Show version information
   language      Set display language (en / ja)
-  done          Mark a task as done. Example: later.py done 1
-  todo          Mark a task as todo. Example: later.py todo 1
+  done          Mark a task as done. Example: later done 1
+  todo          Mark a task as todo. Example: later todo 1
   --file FILE   Use FILE as the task JSON file
   --help        Show this help message
 
 Examples:
-  later.py add "3d" "レポート提出"        # add task due in 3 days
-  later.py add "10h" "打ち合わせ"         # add task due in 10 hours
-  later.py add "今日" "今日のタスク"         # 本日の午前8時のタスクを追加
-  later.py add "明日" "明日のタスク"        # 明日の午前8時のタスクを追加
-  later.py add "明日20時" "明日20時"       # 明日20時のタスクを追加
-  later.py add "明後日" "明後日のタスク"    # 明後日の午前8時のタスクを追加
-  later.py add "来週" "来週のタスク"       # 来週の月曜日の午前8時のタスクを追加
-  later.py add "来週月曜" "レポート提出"    # 来週の月曜日の午前8時のタスクを追加
-  later.py add "水曜日" "ゴミ出し"         # 次の水曜日の午前8時のタスクを追加
-  later.py add "来月第二月曜" "月次報告"    # 来月の第2月曜日の午前8時のタスクを追加
-  later.py add "明日10時" "レポート提出"    # 明日の午前10時00分のタスクを追加
-  later.py add "15:30" "打ち合わせ"        # 今日の15時30分（過ぎていれば明日）のタスクを追加
-  later.py add "5/25" "テスト用タスク"       # (今年の) 5月25日（過去なら来年）の朝8時のタスクを追加
-  later.py add "12月3日 15:30" "月次報告"     # 12月3日の15時30分のタスクを追加
-  later.py add "2026-05-25" "テスト用タスク"   # 2026年5月25日の朝8時のタスクを追加
-  later.py show                         # 全タスク一覧を表示
-  later.py delete 1                     # 番号1のタスクを削除
-  later.py clear                        # 期限切れタスクを削除
-  later.py check                        # 期限切れタスクを表示
-  later.py cal                          # 週間予定をカレンダー形式で表示
-  later.py info                         # データの保存場所を表示
-  later.py version                      # バージョン情報を表示
-  later.py language ja                  # 表示言語を日本語(ja)に設定
-  later.py done 1                       # 番号1のタスクを完了にマーク
-  later.py todo 1                       # 番号1のタスクを未完了にマーク
-  later.py --file /tmp/tasks.json add now "テスト" # 指定したファイルにタスクを追加
+  later add "3d" "Submit report"        # add task due in 3 days
+  later add "10h" "Meeting"             # add task due in 10 hours
+  later add "today" "Today's task"       # add task for today at 8:00 AM
+  later add "tomorrow" "Tomorrow's task" # add task for tomorrow at 8:00 AM
+  later add "tomorrow 20:00" "Tomorrow 20:00" # add task for tomorrow at 8:00 PM
+  later add "day after tomorrow" "Task"  # add task for the day after tomorrow at 8:00 AM
+  later add "next week" "Next week's task" # add task for next Monday at 8:00 AM
+  later add "next Monday" "Submit report" # add task for next Monday at 8:00 AM
+  later add "Wednesday" "Take out trash" # add task for next Wednesday at 8:00 AM
+  later add "next month second Monday" "Monthly report" # add task for second Monday next month at 8:00 AM
+  later add "tomorrow 10:00" "Submit report" # add task for tomorrow at 10:00 AM
+  later add "15:30" "Meeting"            # add task for 15:30 today (or tomorrow if already passed)
+  later add "5/25" "Test task"           # add task for May 25 at 8:00 AM (next year if already passed)
+  later add "Dec 3 15:30" "Monthly report" # add task for Dec 3 at 15:30
+  later add "2026-05-25" "Test task"     # add task for May 25, 2026 at 8:00 AM
+  later show                         # show all tasks
+  later delete 1                     # delete task number 1
+  later clear                        # remove overdue tasks
+  later check                        # show overdue tasks
+  later cal                          # show weekly schedule in calendar format
+  later info                         # show data file location
+  later version                      # show version information
+  later language ja                  # set display language to Japanese (ja)
+  later done 1                       # mark task number 1 as done
+  later todo 1                       # mark task number 1 as todo
+  later --file /tmp/tasks.json add now "Test" # add task to specified file
 ```
 
-## 設定のカスタマイズ
+## Configuration Customization
 
-`set` コマンドを使用すると、`tasks.json` 内の設定値を変更できます。
+You can change values in `tasks.json` with the `set` command.
 
 ```bash
-# APIエンドポイントやAPIキーの設定
+# Configure API endpoint and API key
 later set api_endpoint "https://example.com"
 later set api_key "laterapi::your::key"
 
-# 日付表示形式のカスタマイズ
+# Customize date display format
 later set datetime_format "%Y/%m/%d %H:%M"
 ```
 
-### 日付表示形式のカスタマイズ (datetime_format)
+### Date Display Format Customization (`datetime_format`)
 
-タスク一覧 (`later list`) で表示される通知日時は、標準では年を省き、ポータブルな曜日を含んだ `m/d曜日H:i` 形式（日本語設定時：`03/01水03:33`、英語設定時：`03/01Mon03:33`）で表示されます。
-表示形式を変更したい場合は、`tasks.json` に `datetime_format` キーを設定することで自在にカスタマイズが可能です。
+By default, notification timestamps in the task list (`later list`) omit the year and use an `m/d weekday H:i` style format (for example: `03/01Wed03:33`).
+If you want to change the display format, set the `datetime_format` key in `tasks.json`.
 
-Pythonの `strftime` フォーマット指定子を使用できます：
+You can use Python `strftime` format specifiers:
 - **`%Y/%m/%d %H:%M`**: `2026/06/01 10:30`
-- **`%d/%m %H:%M`**: `01/06 10:30`（欧州風）
-- **`%b %d, %Y %I:%M %p`**: `Jun 01, 2026 10:30 AM`（米国風）
+- **`%d/%m %H:%M`**: `01/06 10:30` (European style)
+- **`%b %d, %Y %I:%M %p`**: `Jun 01, 2026 10:30 AM` (US style)
 
-## 開発者向け (just)
+## Synchronization with Web API (sync)
 
-本プロジェクトではタスクランナーとして [just](https://github.com/casey/just) を導入しています。開発時のテストやコード品質の管理（Lint/Format）に利用できます。インストール方法は [justのGitHubリポジトリ](https://github.com/casey/just#installation) をご参照ください。
+`later-cli` supports bi-directional task synchronization between multiple devices or with a remote Web API server. Running the synchronization will push your local event history (task addition, deletion, and status changes) to the remote server and pull the latest events to keep your local database fully up to date.
 
-### justのコマンド一覧
+### Synchronization Configuration
 
-プロジェクトのルートディレクトリで以下のコマンドを実行できます。
+To set up synchronization, you must configure the API endpoint URL and your API key in `tasks.json` using the `set` command:
 
-- **`just`** または **`just --list`**: 利用可能なコマンドの一覧を表示します。
-- **`just install`**: 依存関係パッケージ（pytest, black, ruff 等）をインストールします。
-- **`just test`**: `pytest` を使用してテストを実行します。
-- **`just lint`**: `ruff` を使用してコードの静的解析（Linter）を実行します。
-- **`just format`**: `black` および `ruff` を使用してコードを自動整形（Formatter）します。
+```bash
+# Set the remote API base endpoint URL
+later set api_endpoint "https://example.com"
 
-## 詳しい使い方
+# Set your API key (must follow format: laterapi::xxx::xxxx)
+later set api_key "laterapi::your_api_key_here"
+```
 
-以下のマイナビ様の連載で、プログラムの解説や簡単な使い方を紹介しています。
+### Connection & Authentication Test (sync hello)
+
+You can verify that your remote endpoint and API key are configured correctly by executing the `sync hello` connection test command:
+
+```bash
+later sync hello
+```
+
+If successful, it will display a connection success message along with the response message from the server. If authentication fails, or if a connection error occurs, the detailed error reasons (such as missing/invalid Bearer tokens or network errors) will be clearly displayed.
+
+### Running Synchronization (sync)
+
+To perform actual bi-directional synchronization, execute the `sync` command:
+
+```bash
+later sync
+```
+
+This will automatically push any unsynced local events, pull remote events, apply those remote changes to your local tasks, and update your synchronization timestamp (`api_updated_at`).
+
+## For Developers (`just`)
+
+This project uses [just](https://github.com/casey/just) as a task runner. It is used for tests and code quality checks (lint/format) during development. See the [just GitHub repository](https://github.com/casey/just#installation) for installation instructions.
+
+### `just` Command List
+
+Run the following commands in the project root directory.
+
+- **`just`** or **`just --list`**: Show the list of available commands.
+- **`just install`**: Install dependency packages (e.g., `pytest`, `black`, `ruff`).
+- **`just test`**: Run tests with `pytest`.
+- **`just lint`**: Run static analysis (linter) with `ruff`.
+- **`just format`**: Auto-format code with `black` and `ruff`.
+
+## More Detailed Guide
+
+The following Mynavi series introduces the program and basic usage:
 
 - https://news.mynavi.jp/techplus/article/zeropython-138/
 
