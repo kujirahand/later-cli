@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""CLIでタスクを管理するプログラム"""
+"""CLI application for managing tasks."""
 
 from datetime import datetime, timedelta
 import importlib.metadata
@@ -20,12 +20,12 @@ from storage import (
 )
 
 CLEAR_TARGETS = Literal[
-    "overdue",  # 期限が過ぎたタスク
-    "all",  # すべてのタスク
-    "done",  # 完了済みのタスク
+    "overdue",  # Tasks past their due date
+    "all",  # All tasks
+    "done",  # Completed tasks
 ]
 
-# TyperやConsoleのインスタンスを作成
+# Create Typer and Rich console instances
 app = typer.Typer(no_args_is_help=False, add_completion=True)
 console = Console()
 
@@ -118,14 +118,14 @@ MESSAGES = {
 
 
 def get_msg(key: str, *args, **kwargs) -> str:
-    """設定された言語に応じたメッセージを取得する"""
+    """Get a localized message for the currently configured language."""
     lang = get_language()
     msg_tpl = MESSAGES.get(lang, MESSAGES["en"]).get(key, MESSAGES["en"][key])
     return msg_tpl.format(*args, **kwargs)
 
 
 def get_version() -> str:
-    """パッケージのメタデータ、またはpyproject.tomlからバージョン情報を取得する"""
+    """Get version info from package metadata or pyproject.toml."""
     try:
         return importlib.metadata.version("later-cli")
     except importlib.metadata.PackageNotFoundError:
@@ -220,13 +220,13 @@ N_MAP = {
 
 
 def get_target_year_month(year: int, month: int, shift: int) -> tuple[int, int]:
-    """年に月シフト量を加えて、新しい年と月を返す"""
+    """Return the new year/month after applying a month shift."""
     m = month - 1 + shift
     return year + (m // 12), (m % 12) + 1
 
 
 def calc_due_date(due: str) -> datetime:
-    """期限の表現を解析して、通知日時を計算する"""
+    """Parse a due expression and return the notification datetime."""
     now = datetime.now()
     normalized = due.strip().lower()
     if normalized == "now" or normalized == "すぐ" or normalized == "今":
@@ -246,7 +246,7 @@ def calc_due_date(due: str) -> datetime:
             hour=8, minute=0, second=0, microsecond=0
         )
 
-    # 時刻表現のパース (例: "明日10時", "明後日15時30分", "10:30", "本日18時")
+    # Parse time expressions (e.g. "明日10時", "明後日15時30分", "10:30", "本日18時")
     time_match = re.fullmatch(
         r"^(?P<day_word>今日|本日|明日|明後日|来週)?(?:の)?(?:(?P<hour>\d+)時(?:(?P<minute>\d+)分)?|(?P<hour_colon>\d+):(?P<minute_colon>\d+))$",
         normalized,
@@ -254,7 +254,7 @@ def calc_due_date(due: str) -> datetime:
     if time_match:
         day_word = time_match.group("day_word")
 
-        # 時・分の取得
+        # Extract hour/minute
         if time_match.group("hour") is not None:
             h = int(time_match.group("hour"))
             m = (
@@ -269,7 +269,7 @@ def calc_due_date(due: str) -> datetime:
         if not (0 <= h < 24) or not (0 <= m < 60):
             raise typer.BadParameter(get_msg("err_invalid_time"))
 
-        # 日付のベースを決定
+        # Decide the base date offset
         if day_word == "明日":
             days_offset = 1
         elif day_word == "明後日":
@@ -279,8 +279,8 @@ def calc_due_date(due: str) -> datetime:
         elif day_word in ("今日", "本日"):
             days_offset = 0
         else:
-            # 日付ワードが無い場合 (例: "10時", "10:30")
-            # すでにその時間を過ぎている場合は「明日」にする
+            # If no day word is specified (e.g. "10時", "10:30"),
+            # use tomorrow when the time has already passed today.
             temp_date = now.replace(hour=h, minute=m, second=0, microsecond=0)
             if temp_date <= now:
                 days_offset = 1
@@ -291,7 +291,7 @@ def calc_due_date(due: str) -> datetime:
             hour=h, minute=m, second=0, microsecond=0
         )
 
-    # 曜日指定のパース (例: "来週月曜", "今週の水曜日", "木曜日")
+    # Parse weekday expressions (e.g. "来週月曜", "今週の水曜日", "木曜日")
     weekday_match = re.fullmatch(
         r"^(今週|来週|再来週)?(?:の)?(月|火|水|木|金|土|日)(曜|曜日)?$", normalized
     )
@@ -299,35 +299,35 @@ def calc_due_date(due: str) -> datetime:
         prefix = weekday_match.group(1)
         weekday_char = weekday_match.group(2)
         target_weekday = WEEKDAY_MAP[weekday_char]
-        current_weekday = now.weekday()  # 0=月, 6=日
+        current_weekday = now.weekday()  # 0=Mon, 6=Sun
 
         if prefix == "来週":
-            # 次の月曜日を基準にする
+            # Use next Monday as the base
             days_to_monday = 7 - current_weekday
             next_monday = now + timedelta(days=days_to_monday)
             target_date = next_monday + timedelta(days=target_weekday)
         elif prefix == "再来週":
-            # 次の次の月曜日を基準にする
+            # Use Monday of the following week as the base
             days_to_monday = 7 - current_weekday
             two_weeks_monday = now + timedelta(days=days_to_monday + 7)
             target_date = two_weeks_monday + timedelta(days=target_weekday)
         elif prefix == "今週":
-            # 今週の月曜日を基準にする
+            # Use this week's Monday as the base
             this_monday = now - timedelta(days=current_weekday)
             target_date = this_monday + timedelta(days=target_weekday)
-            # 過ぎている場合は自動的に来週にする
+            # If already passed this week, move to next week
             if target_date.date() < now.date():
                 target_date += timedelta(days=7)
         else:
-            # 接頭辞なし（例: "月曜"）: 最も近い未来のその曜日
+            # Without prefix (e.g. "月曜"): nearest future weekday
             days_ahead = target_weekday - current_weekday
-            if days_ahead <= 0:  # 今日または過去の曜日の場合は1週間後
+            if days_ahead <= 0:  # Today/past weekday goes to next week
                 days_ahead += 7
             target_date = now + timedelta(days=days_ahead)
 
         return target_date.replace(hour=8, minute=0, second=0, microsecond=0)
 
-    # 第N曜日指定のパース (例: "来月第二月曜", "今月の第3水曜日", "第一土曜日")
+    # Parse Nth-weekday expressions (e.g. "来月第二月曜", "今月の第3水曜日", "第一土曜日")
     nth_match = re.fullmatch(
         r"^(今月|来月|再来月)?(?:の)?(第一|第二|第三|第四|第五|第[1-5]|[1-5])(?:の)?(月|火|水|木|金|土|日)(曜|曜日)?$",
         normalized,
@@ -340,7 +340,7 @@ def calc_due_date(due: str) -> datetime:
         nth = N_MAP[nth_str]
         target_weekday = WEEKDAY_MAP[weekday_char]
 
-        # 対象の月シフト量を決定
+        # Determine target month shift
         shift = 0
         if prefix == "来月":
             shift = 1
@@ -348,21 +348,21 @@ def calc_due_date(due: str) -> datetime:
             shift = 2
 
         def calculate_nth_weekday(y: int, m: int, n: int, w: int) -> datetime:
-            # y年m月の第n番目の曜日w(0=月, 6=日)を求める
-            # 1日の曜日
+            # Compute the nth weekday w in month m of year y (0=Mon, 6=Sun)
+            # Weekday of the 1st day of the month
             first_day_w = datetime(y, m, 1).weekday()
             first_target_d = 1 + (w - first_day_w) % 7
             target_d = first_target_d + (n - 1) * 7
-            # 存在しない日の場合はValueErrorになる
+            # datetime raises ValueError if the computed day does not exist
             return datetime(y, m, target_d, 8, 0, 0)
 
-        # ターゲット年月の算出
+        # Calculate target year/month
         t_year, t_month = get_target_year_month(now.year, now.month, shift)
 
         try:
             target_date = calculate_nth_weekday(t_year, t_month, nth, target_weekday)
 
-            # 過去日付かつ接頭辞が「今月」または無指定の場合は「来月」に補正
+            # If in the past and prefix is "今月" or omitted, move to next month
             if target_date.date() < now.date() and (prefix == "今月" or not prefix):
                 t_year, t_month = get_target_year_month(now.year, now.month, 1)
                 target_date = calculate_nth_weekday(
@@ -375,7 +375,7 @@ def calc_due_date(due: str) -> datetime:
                 get_msg("err_invalid_nth_weekday", nth, weekday_char)
             )
 
-    # 年を含む特定日付指定のパース (例: "2026-05-25", "2026/5/25 15時", "5/25", "12/3 15:30")
+    # Parse specific-date expressions (e.g. "2026-05-25", "2026/5/25 15時", "5/25", "12/3 15:30")
     date_match = re.fullmatch(
         r"^(?:(?P<year>\d{4})[/\-年](?:の)?)?(?P<month>\d{1,2})[/\-月](?P<day>\d{1,2})日?(?:\s*(?:(?P<hour>\d+)時(?:(?P<minute>\d+)分)?|(?P<hour_colon>\d+):(?P<minute_colon>\d+)))?$",
         normalized,
@@ -385,11 +385,11 @@ def calc_due_date(due: str) -> datetime:
         d = int(date_match.group("day"))
         year_str = date_match.group("year")
 
-        # 時・分の取得 (デフォルトは朝8時)
+        # Parse time (default: 08:00)
         h = 8
         minute_val = 0
 
-        # 時刻指定がある場合
+        # If a time is explicitly specified
         if date_match.group("hour") is not None:
             h = int(date_match.group("hour"))
             minute_val = (
@@ -410,7 +410,7 @@ def calc_due_date(due: str) -> datetime:
             raise typer.BadParameter(get_msg("err_date_range"))
 
         if year_str is not None:
-            # 年が明示されている場合
+            # Explicit year was provided
             t_year = int(year_str)
             try:
                 target_date = datetime(t_year, m, d, h, minute_val, 0)
@@ -419,7 +419,7 @@ def calc_due_date(due: str) -> datetime:
                     get_msg("err_date_not_exist", f"{t_year}-{m:02d}-{d:02d}")
                 )
         else:
-            # 年が省略されている場合は「今年（過去なら来年）」にする
+            # If year is omitted, use this year (or next year if already past)
             t_year = now.year
             try:
                 target_date = datetime(t_year, m, d, h, minute_val, 0)
@@ -428,7 +428,7 @@ def calc_due_date(due: str) -> datetime:
                     get_msg("err_date_not_exist", f"{m:02d}-{d:02d}")
                 )
 
-            # 過去日付の場合は「来年」にする
+            # Move to next year if the date is already in the past
             if target_date.date() < now.date():
                 try:
                     target_date = datetime(t_year + 1, m, d, h, minute_val, 0)
@@ -456,22 +456,22 @@ def calc_due_date(due: str) -> datetime:
 @app.command()
 def add(due: str, task: str):
     """
-    タスクを追加する
+        Add a task.
 
-    指定例:
+        Examples:
       later.py add 3d "レポート提出" ... add task due in 3 days (default time is 8:00 AM)
       later.py add 10h "打ち合わせ" ... add task due in 10 hours
       later.py add now "今すぐやるタスク" ... add task due now
       later.py add "3/10 15:30" "特定の日のタスク" ... add task due on March 10 at 15:30 (this year or next year if date has passed)
-      later.py add 明日 "明日のタスク" ... 明日の朝のタスク
-      later.py add 明日10時 "明日10時のタスク" ... 明日の朝10時のタスク
-      later.py add 明後日 "明後日のタスク" ... 明後日の朝のタスク
-      later.py add 来週 "来週のタスク" ... 来週月曜日の朝のタスク
-      later.py add 今 "今すぐやるタスク" ... 今すぐ
-      later.py add 20時 "今日の20時のタスク" ... 今日の20時にタスクを追加
-      later.py add 来週月曜 "レポート提出" ... 来週月曜の朝のタスクを追加
-      later.py add 水曜日" "ゴミ出し" ... 次の水曜日の朝のタスクを追加
-      later.py add 来月第二月曜 "月次報告" ... 来月の第2月曜日の朝のタスクを追加
+            later.py add 明日 "明日のタスク" ... task due tomorrow morning
+            later.py add 明日10時 "明日10時のタスク" ... task due tomorrow at 10:00
+            later.py add 明後日 "明後日のタスク" ... task due the morning of the day after tomorrow
+            later.py add 来週 "来週のタスク" ... task due next Monday morning
+            later.py add 今 "今すぐやるタスク" ... task due immediately
+            later.py add 20時 "今日の20時のタスク" ... task due today at 20:00
+            later.py add 来週月曜 "レポート提出" ... task due next Monday morning
+            later.py add 水曜日" "ゴミ出し" ... task due next Wednesday morning
+            later.py add 来月第二月曜 "月次報告" ... task due on the second Monday of next month
     """
     tasks = load_tasks()
     notify_at = calc_due_date(due)
@@ -479,7 +479,7 @@ def add(due: str, task: str):
     tasks.append({"date": notify_at_s, "task": task, "status": "todo"})
     save_tasks(tasks)
 
-    # 追加したタスクのソート後の位置を特定する
+    # Find the inserted task position after sorting
     sorted_tasks = load_tasks()
     added_idx = len(sorted_tasks)
     for idx, t in enumerate(sorted_tasks, start=1):
@@ -487,7 +487,7 @@ def add(due: str, task: str):
             added_idx = idx
             break
 
-    # 追加成功テーブルを作成
+    # Build a table showing the successfully added task
     added_table = Table(
         title=get_msg("added_title"),
         box=box.ROUNDED,
@@ -509,7 +509,7 @@ def add_short(due: str, task: str):
 
 
 def get_countdown_str(date_str: str) -> str:
-    """期限までのカウントダウン文字列を取得する"""
+    """Return a human-readable countdown string until the due date."""
     try:
         notify_at = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
     except ValueError:
@@ -552,9 +552,9 @@ def get_countdown_str(date_str: str) -> str:
 
 
 def show_tasks(tasks: list[dict], title: str):
-    """タスクのリストを表形式で表示する"""
+    """Display the task list in a table."""
     if len(tasks) == 0:
-        # タスクがない場合はメッセージを表示して終了
+        # Show message and return when there are no tasks
         console.print(get_msg("no_tasks"))
         return
     table = Table(title=title, show_lines=False, box=box.ROUNDED)
@@ -573,7 +573,7 @@ def show_tasks(tasks: list[dict], title: str):
 
 @app.command("list")
 def show_alias():
-    """タスク一覧を表示"""
+    """Show the task list."""
     tasks = load_tasks()
     show_tasks(tasks, get_msg("list_title"))
 
@@ -594,7 +594,7 @@ def show():
 
 @app.command()
 def delete(number: int):
-    """Delete a task by number (例: later.py delete 1)"""
+    """Delete a task by number (e.g. later.py delete 1)."""
     tasks = load_tasks()
     if number < 1 or number > len(tasks):
         raise typer.BadParameter(get_msg("err_idx_range", len(tasks)))
@@ -612,7 +612,7 @@ def delelete_alias(number: int):
 
 @app.command()
 def clear(target: CLEAR_TARGETS = "overdue"):
-    """期限が過ぎたタスクを一括削除する"""
+    """Bulk-delete tasks based on the selected target."""
     tasks = load_tasks()
     now = datetime.now()
     if target == "overdue":
@@ -622,7 +622,7 @@ def clear(target: CLEAR_TARGETS = "overdue"):
         tasks_due = []
         for task in tasks:
             notify_at = datetime.strptime(task["date"], "%Y-%m-%d %H:%M:%S")
-            remove_date = notify_at - timedelta(days=1)  # 期限が1日以上過ぎたもの
+            remove_date = notify_at - timedelta(days=1)  # Remove tasks overdue by at least one day
             if remove_date > now:
                 tasks_due.append(task)
         save_tasks(tasks_due)
@@ -640,13 +640,13 @@ def clear(target: CLEAR_TARGETS = "overdue"):
             return
         save_tasks([])
         print(get_msg("clear_done", 0))
-    # 更新後のタスクを表示
+    # Show tasks after update
     show()
 
 
 @app.command()
 def check():
-    """期限が来たタスクを表示する"""
+    """Show tasks whose due time has arrived."""
     tasks = load_tasks()
     now = datetime.now()
     tasks_due = []
@@ -664,14 +664,14 @@ def check_alias():
 
 
 def show_cal(days: int = 7):
-    """週間予定をカレンダー形式で表示する"""
+    """Display scheduled tasks in calendar format."""
     title = (
         get_msg("cal_title_weekly") if days == 7 else get_msg("cal_title_days", days)
     )
     tasks = load_tasks()
     now = datetime.now()
 
-    # 日付ごとのタスクマッピング
+    # Map tasks by date
     from collections import defaultdict
 
     day_tasks = defaultdict(list)
@@ -682,7 +682,7 @@ def show_cal(days: int = 7):
         except ValueError:
             continue
 
-    # 枠線とヘッダーを表示し、カラムを分離して構成
+    # Build table columns with headers and borders
     table = Table(
         title=title,
         show_header=True,
@@ -720,19 +720,19 @@ def show_cal(days: int = 7):
 
 @app.command("cal")
 def cal(d: int = 7):
-    """週間予定をカレンダー形式で表示 `cal --d 10`で任意期間を指定"""
+    """Show calendar view; use cal --d 10 to specify a custom range."""
     show_cal(d)
 
 
 @app.command("cal30")
 def cal30():
-    """30日分の予定をカレンダー形式で表示 `cal --d 30` と同等"""
+    """Show a 30-day calendar view (same as cal --d 30)."""
     show_cal(30)
 
 
 @app.command("info")
 def info():
-    """情報を表示"""
+    """Show information."""
     print(get_msg("info_saved_in"))
     print(get_data_file())
 
@@ -740,9 +740,7 @@ def info():
 @app.command("language")
 def language_cmd(lang: str):
     """
-    表示言語を変更する (en / ja)
-
-    Change display language (en / ja)
+    Change display language (en / ja).
     """
     normalized = lang.strip().lower()
     if normalized not in ("en", "ja"):
@@ -763,9 +761,7 @@ def language_cmd(lang: str):
 @app.command()
 def done(number: int):
     """
-    タスクの状態を「完了」にする (例: later.py done 1)
-
-    Mark a task as done (e.g., later.py done 1)
+    Mark a task as done (e.g. later.py done 1).
     """
     tasks = load_tasks()
     if number < 1 or number > len(tasks):
@@ -780,9 +776,7 @@ def done(number: int):
 @app.command()
 def todo(number: int):
     """
-    タスクの状態を「未完了(todo)」にする (例: later.py todo 1)
-
-    Mark a task as todo (e.g., later.py todo 1)
+    Mark a task as todo (e.g. later.py todo 1).
     """
     tasks = load_tasks()
     if number < 1 or number > len(tasks):
