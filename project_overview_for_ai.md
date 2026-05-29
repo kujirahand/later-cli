@@ -18,6 +18,7 @@
 | カテゴリ | ツール / パッケージ | バージョン | 用途 |
 | :--- | :--- | :--- | :--- |
 | **言語** | Python | 3.x | メイン言語 |
+| **パッケージマネージャー** | [uv](https://github.com/astral-sh/uv) | `0.7.8` | 高速な依存関係解決、仮想環境管理、およびロックファイルの管理 |
 | **CLIフレームワーク** | [Typer](https://typer.tiangolo.com/) | `0.25.1` | CLIコマンドの作成、引数・オプションのパース |
 | **画面出力** | [Rich](https://rich.readthedocs.io/) | `15.0.0` | テーブル表示やカラー出力などのリッチな端末表示 |
 | **テスト** | [pytest](https://docs.pytest.org/) | `9.0.3` | 単体テストおよび統合テストの実行 |
@@ -36,8 +37,10 @@ later-cli/
 ├── storage.py       # タスクデータの読み込み、保存、ソート、保存先管理。
 ├── later            # later.py を呼び出すための bash ラッパースクリプト。
 ├── tasks.json       # タスクデータが保存されるJSONファイル (デフォルト)。
-├── requirements.txt # Python依存パッケージの定義。
-├── justfile         # 開発用タスクランナー (just) の設定。
+├── requirements.txt # Python依存パッケージの定義（旧構成）。
+├── pyproject.toml   # ★ uv / PEP621準拠のプロジェクト・依存関係設定ファイル。
+├── uv.lock          # uvによる依存関係のロックファイル。
+├── justfile         # 開発用タスクランナー (just) の設定 (uv run対応済み)。
 ├── tests/
 │   └── test_cli.py  # TyperのCliRunnerを使用したコマンドテスト。
 └── README.md        # ユーザー向けの使用方法やセットアップ手順。
@@ -89,7 +92,7 @@ Antigravity（AIアシスタント）や他の開発者がこのプロジェク�
 - **[later.py](./later.py)**
   - TyperのCLIアプリケーション定義（`app = typer.Typer(...)`）があり、すべてのサブコマンド（`add`, `show`, `delete` 等）やメインロジックがここに実装されています。直接Pythonで動かす際のエントリーポイントです。
 - **[later](./later)**
-  - ユーザーがパスを通して `later add ...` のように簡単に実行できるようにするための bash ラッパースクリプトです。内部的には `later.py` を呼び出しています。
+  - ユーザーがパスを通して `later add ...` のように簡単に実行できるようにするための bash ラッパースクリプトです。**.venv ディレクトリが存在し、かつ `uv` コマンドがインストールされている場合は自動的に `uv run` 経由で実行され、それ以外の場合は従来の `python` 経由で安全にフォールバック実行されます。**
 
 ### 2) プロジェクト理解・ドキュメントの起点 (Information Entry Point)
 - **[README.md](./README.md)**
@@ -103,18 +106,18 @@ Antigravity（AIアシスタント）や他の開発者がこのプロジェク�
 
 ## 6. 開発時に役立つ `just` コマンド一覧
 
-AIがプログラムの変更や検証を行う際は、プロジェクトのルートディレクトリで以下のコマンドを実行してください。
+AIがプログラムの変更や検証を行う際は、プロジェクトのルートディレクトリで以下のコマンドを実行してください。これらは内部で `uv` を使用して自動的に仮想環境を構築・利用して実行されます（例: `uv run pytest`）。
 
 ```bash
-# 依存関係（pytest, black, ruff等）のインストール
+# 依存関係（pytest, black, ruff等）のインストール（uv sync）
 just install
 
-# 単体テストの実行（pytest）
+# 単体テストの実行（uv run pytest）
 just test
 
-# 静的解析チェックの実行（ruff）
+# 静的解析チェックの実行（uv run ruff check .）
 just lint
 
-# コードの自動整形（black & ruff format）
+# コードの自動整形（uv run black . / uv run ruff format .）
 just format
 ```

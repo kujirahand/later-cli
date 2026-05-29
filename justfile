@@ -2,15 +2,15 @@ default:
     just --list
 
 install:
-    python -m pip install -r requirements.txt
+    uv sync
 
 test:
-    python -m pytest
+    uv run pytest
 
 lint:
-    ruff check .
+    uv run ruff check .
 
 format:
-    black .
-    ruff format .
+    uv run black .
+    uv run ruff format .
 

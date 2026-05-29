@@ -10,6 +10,21 @@
 # リポジトリを取ってくる
 git clone https://github.com/kujirahand/later-cli.git
 cd later-cli
+```
+
+#### パッケージマネージャー `uv` を使用する場合 (推奨)
+
+高速なパッケージマネージャーである [uv](https://github.com/astral-sh/uv) を使用する場合は、以下のコマンドを実行するだけで自動的に仮想環境（`.venv`）が構築され、依存パッケージがすべて同期されます。
+
+```sh
+uv sync
+```
+
+実行する際は、`uv run later.py <args...>` もしくは仮想環境内の python を介して実行できます。
+
+#### 従来の `pip` を使用する場合
+
+```sh
 # 依存をインストール
 python -m pip install -r requirements.txt
 ```
