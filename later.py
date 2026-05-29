@@ -17,8 +17,23 @@ from storage import (
 )
 
 # TyperやConsoleのインスタンスを作成
-app = typer.Typer(no_args_is_help=True, add_completion=False)
+app = typer.Typer(no_args_is_help=True, add_completion=True)
 console = Console()
+
+
+def get_version() -> str:
+    """pyproject.tomlからバージョン情報を取得する"""
+    pyproject_path = Path(__file__).parent / "pyproject.toml"
+    if not pyproject_path.exists():
+        return "unknown"
+    try:
+        content = pyproject_path.read_text(encoding="utf-8")
+        match = re.search(r'^version\s*=\s*"(.*?)"', content, re.MULTILINE)
+        if match:
+            return match.group(1)
+    except Exception:
+        pass
+    return "unknown"
 
 
 @app.callback()
@@ -34,6 +49,13 @@ def main(
         set_data_file(taskfile)
     else:
         reset_data_file()
+
+
+@app.command("version")
+def version_cmd():
+    """バージョン情報を表示する"""
+    version = get_version()
+    console.print(f"later-cli v{version}")
 
 
 WEEKDAY_MAP = {
@@ -540,12 +562,12 @@ def show_cal(days: int = 7):
 
 @app.command("cal")
 def cal(d: int = 7):
-    """週間予定をカレンダー形式で表示する `cal --d 10` と指定して任意の期間を表示できる"""
+    """週間予定をカレンダー形式で表示 `cal --d 10`で任意期間を指定"""
     show_cal(d)
 
 @app.command("cal30")
 def cal30():
-    """週間予定をカレンダー形式で表示する"""
+    """30日分の予定をカレンダー形式で表示 `cal --d 30` と同等"""
     show_cal(30)
 
 @app.command("info")

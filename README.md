@@ -76,6 +76,7 @@ Commands:
   check         Show due tasks
   cal           Show weekly schedule in calendar format
   info          Show the data file path
+  version       Show version information
   --file FILE   Use FILE as the task JSON file
   --help        Show this help message
 
@@ -101,6 +102,7 @@ Examples:
   later.py check                        # 期限切れタスクを表示
   later.py cal                          # 週間予定をカレンダー形式で表示
   later.py info                         # データの保存場所を表示
+  later.py version                      # バージョン情報を表示
   later.py --file /tmp/tasks.json add now "テスト" # 指定したファイルにタスクを追加
 ```
 

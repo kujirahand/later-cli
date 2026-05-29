@@ -149,3 +149,9 @@ def test_add_with_today(invoke, taskfile):
     assert len(tasks) == 1
     assert tasks[0]["task"] == "今日の朝の予定"
     assert tasks[0]["date"].endswith("08:00:00")
+
+
+def test_version_command(invoke):
+    result = invoke("version")
+    assert result.exit_code == 0, result.output
+    assert "later-cli v" in result.output
