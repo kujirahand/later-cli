@@ -70,3 +70,25 @@ def test_file_option_does_not_change_default_task_file(invoke):
 
     after = default_file.read_bytes() if default_file.exists() else None
     assert before == after
+
+
+def test_add_with_weekday(invoke, taskfile):
+    result = invoke("add", "来週月曜", "来週月曜のタスク")
+    assert result.exit_code == 0, result.output
+    assert taskfile.exists()
+
+    tasks = json.loads(taskfile.read_text(encoding="utf-8"))
+    assert len(tasks) == 1
+    assert tasks[0]["task"] == "来週月曜のタスク"
+    assert tasks[0]["date"].endswith("08:00:00")
+
+
+def test_add_with_nth_weekday(invoke, taskfile):
+    result = invoke("add", "来月第二月曜", "来月第二月曜のタスク")
+    assert result.exit_code == 0, result.output
+    assert taskfile.exists()
+
+    tasks = json.loads(taskfile.read_text(encoding="utf-8"))
+    assert len(tasks) == 1
+    assert tasks[0]["task"] == "来月第二月曜のタスク"
+    assert tasks[0]["date"].endswith("08:00:00")

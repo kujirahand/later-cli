@@ -35,6 +35,25 @@ def main(
         reset_data_file()
 
 
+WEEKDAY_MAP = {
+    "月": 0, "火": 1, "水": 2, "木": 3, "金": 4, "土": 5, "日": 6,
+    "月曜": 0, "火曜": 1, "水曜": 2, "木曜": 3, "金曜": 4, "土曜": 5, "日曜": 6,
+    "月曜日": 0, "火曜日": 1, "水曜日": 2, "木曜日": 3, "金曜日": 4, "土曜日": 5, "日曜日": 6,
+}
+
+N_MAP = {
+    "第一": 1, "第二": 2, "第三": 3, "第四": 4, "第五": 5,
+    "第1": 1, "第2": 2, "第3": 3, "第4": 4, "第5": 5,
+    "1": 1, "2": 2, "3": 3, "4": 4, "5": 5,
+}
+
+
+def get_target_year_month(year: int, month: int, shift: int) -> tuple[int, int]:
+    """年に月シフト量を加えて、新しい年と月を返す"""
+    m = month - 1 + shift
+    return year + (m // 12), (m % 12) + 1
+
+
 def calc_due_date(due: str) -> datetime:
     """期限の表現を解析して、通知日時を計算する"""
     now = datetime.now()
@@ -53,9 +72,94 @@ def calc_due_date(due: str) -> datetime:
         return (now + timedelta(days=7)).replace(
             hour=8, minute=0, second=0, microsecond=0
         )
+
+    # 曜日指定のパース (例: "来週月曜", "今週の水曜日", "木曜日")
+    weekday_match = re.fullmatch(
+        r"^(今週|来週|再来週)?(?:の)?(月|火|水|木|金|土|日)(曜|曜日)?$", normalized
+    )
+    if weekday_match:
+        prefix = weekday_match.group(1)
+        weekday_char = weekday_match.group(2)
+        target_weekday = WEEKDAY_MAP[weekday_char]
+        current_weekday = now.weekday()  # 0=月, 6=日
+
+        if prefix == "来週":
+            # 次の月曜日を基準にする
+            days_to_monday = 7 - current_weekday
+            next_monday = now + timedelta(days=days_to_monday)
+            target_date = next_monday + timedelta(days=target_weekday)
+        elif prefix == "再来週":
+            # 次の次の月曜日を基準にする
+            days_to_monday = 7 - current_weekday
+            two_weeks_monday = now + timedelta(days=days_to_monday + 7)
+            target_date = two_weeks_monday + timedelta(days=target_weekday)
+        elif prefix == "今週":
+            # 今週の月曜日を基準にする
+            this_monday = now - timedelta(days=current_weekday)
+            target_date = this_monday + timedelta(days=target_weekday)
+            # 過ぎている場合は自動的に来週にする
+            if target_date.date() < now.date():
+                target_date += timedelta(days=7)
+        else:
+            # 接頭辞なし（例: "月曜"）: 最も近い未来のその曜日
+            days_ahead = target_weekday - current_weekday
+            if days_ahead <= 0:  # 今日または過去の曜日の場合は1週間後
+                days_ahead += 7
+            target_date = now + timedelta(days=days_ahead)
+
+        return target_date.replace(hour=8, minute=0, second=0, microsecond=0)
+
+    # 第N曜日指定のパース (例: "来月第二月曜", "今月の第3水曜日", "第一土曜日")
+    nth_match = re.fullmatch(
+        r"^(今月|来月|再来月)?(?:の)?(第一|第二|第三|第四|第五|第[1-5]|[1-5])(?:の)?(月|火|水|木|金|土|日)(曜|曜日)?$",
+        normalized
+    )
+    if nth_match:
+        prefix = nth_match.group(1)
+        nth_str = nth_match.group(2)
+        weekday_char = nth_match.group(3)
+
+        nth = N_MAP[nth_str]
+        target_weekday = WEEKDAY_MAP[weekday_char]
+
+        # 対象の月シフト量を決定
+        shift = 0
+        if prefix == "来月":
+            shift = 1
+        elif prefix == "再来月":
+            shift = 2
+
+        def calculate_nth_weekday(y: int, m: int, n: int, w: int) -> datetime:
+            # y年m月の第n番目の曜日w(0=月, 6=日)を求める
+            # 1日の曜日
+            first_day_w = datetime(y, m, 1).weekday()
+            first_target_d = 1 + (w - first_day_w) % 7
+            target_d = first_target_d + (n - 1) * 7
+            # 存在しない日の場合はValueErrorになる
+            return datetime(y, m, target_d, 8, 0, 0)
+
+        # ターゲット年月の算出
+        t_year, t_month = get_target_year_month(now.year, now.month, shift)
+
+        try:
+            target_date = calculate_nth_weekday(t_year, t_month, nth, target_weekday)
+
+            # 過去日付かつ接頭辞が「今月」または無指定の場合は「来月」に補正
+            if target_date.date() < now.date() and (prefix == "今月" or not prefix):
+                t_year, t_month = get_target_year_month(now.year, now.month, 1)
+                target_date = calculate_nth_weekday(t_year, t_month, nth, target_weekday)
+
+            return target_date
+        except ValueError:
+            raise typer.BadParameter(
+                f"指定された日付（第{nth}番目の{weekday_char}曜日）は存在しません。"
+            )
+
     match = re.fullmatch(r"(\d+)([dh日])", normalized)
     if not match:
-        raise typer.BadParameter("期限は '3d' / '2h' の形式で指定してください。")
+        raise typer.BadParameter(
+            "期限は '3d' / '2h' や曜日（例: '来週月曜'）、第N曜日（例: '来月第二月曜'）の形式で指定してください。"
+        )
     amount = int(match.group(1))
     unit = match.group(2)
     if unit == "d":
@@ -73,13 +177,16 @@ def add(due: str, task: str):
     タスクを追加する
 
     指定例:
-      later.py add "3d" "レポート提出" ... Add 3 days task
-      later.py add "10h" "打ち合わせ" ... 10 hours task
-      later.py add "明日" "明日のタスク" ... Add tomorrow 8am task
-      later.py add "明後日" "明後日のタスク" ... Add the day after tomorrow 8am task
-      later.py add "来週" "来週のタスク" ... Add next week 8am task
-      later.py add now "今すぐやるタスク" ... Add now task
-      later.py add 今 "今すぐやるタスク" ... Add now task
+      later.py add "3d" "レポート提出" ... 3日後の朝のタスクを追加
+      later.py add "10h" "打ち合わせ" ... 10時間後のタスク
+      later.py add "明日" "明日のタスク" ... 明日の朝のタスク
+      later.py add "明後日" "明後日のタスク" ... 明後日の朝のタスク
+      later.py add "来週" "来週のタスク" ... 来週月曜日の朝のタスク
+      later.py add now "今すぐやるタスク" ... 今すぐのタスク
+      later.py add 今 "今すぐやるタスク" ... 今すぐ
+      later.py add "来週月曜" "レポート提出" ... 来週月曜の朝のタスクを追加
+      later.py add "水曜日" "ゴミ出し" ... 次の水曜日の朝のタスクを追加
+      later.py add "来月第二月曜" "月次報告" ... 来月の第2月曜日の朝のタスクを追加
     """
     tasks = load_tasks()
     notify_at = calc_due_date(due)
@@ -92,7 +199,7 @@ def add(due: str, task: str):
 
 @app.command("a")
 def add_short(due: str, task: str):
-    """タスク追加の簡易コマンド (例: later.py a "3d" "レポート提出")"""
+    """ addコマンドのエイリアスでタスクを追加する """
     add(due, task)
 
 
@@ -158,12 +265,24 @@ def show_tasks(tasks: list[dict], title: str):
     console.print(table)
 
 
-@app.command()
-def show():
-    """保存されたタスクを表示する"""
+@app.command("list")
+def show_alias():
+    """タスク一覧を表示"""
     tasks = load_tasks()
     show_tasks(tasks, "■ 保存したタスク一覧")
 
+
+@app.command("ls")
+def list_alias():
+    """listのエイリアスでタスク一覧を表示"""
+    tasks = load_tasks()
+    show_tasks(tasks, "■ 保存したタスク一覧")
+
+@app.command()
+def show():
+    """listのエイリアスでタスク一覧を表示"""
+    tasks = load_tasks()
+    show_tasks(tasks, "■ 保存したタスク一覧")
 
 @app.command()
 def delete(number: int):
@@ -177,6 +296,12 @@ def delete(number: int):
     save_tasks(tasks)
     print(f"タスクを削除しました: {deleted_task['task']}")
     show()
+
+
+@app.command("del")
+def delelete_alias(number: int):
+    """deleteコマンドのエイリアス"""
+    delete(number)
 
 
 @app.command()
@@ -207,6 +332,10 @@ def check():
             tasks_due.append(task)
     show_tasks(tasks_due, "■ 期限が来たタスク")
 
+@app.command("c")
+def check_alias():
+    """checkコマンドのエイリアス"""
+    check()
 
 @app.command("info")
 def info():

@@ -62,7 +62,10 @@ Commands:
   add           Add a new task. Example: later.py add "3d" "Submit report"
   a             Alias for add (shorter command)
   show          Show all tasks
+  list          Alias for show
+  ls            Alias for show (shorter command)
   delete        Delete a task by number. Example: later.py delete 1
+  del           Alias for delete (shorter command)
   clear         Remove overdue tasks
   check         Show due tasks
   info          Show the data file path
@@ -75,6 +78,9 @@ Examples:
   later.py add "明日" "明日のタスク"        # 明日の午前8時のタスクを追加
   later.py add "明後日" "明後日のタスク"    # 明後日の午前8時のタスクを追加
   later.py add "来週" "来週のタスク"       # 来週の月曜日の午前8時のタスクを追加
+  later.py add "来週月曜" "レポート提出"    # 来週の月曜日の午前8時のタスクを追加
+  later.py add "水曜日" "ゴミ出し"         # 次の水曜日の午前8時のタスクを追加
+  later.py add "来月第二月曜" "月次報告"    # 来月の第2月曜日の午前8時のタスクを追加
   later.py show                         # 全タスク一覧を表示
   later.py delete 1                     # 番号1のタスクを削除
   later.py clear                        # 期限切れタスクを削除
