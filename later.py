@@ -18,7 +18,7 @@ from storage import (
 )
 
 # TyperやConsoleのインスタンスを作成
-app = typer.Typer(no_args_is_help=True, add_completion=True)
+app = typer.Typer(no_args_is_help=False, add_completion=True)
 console = Console()
 
 
@@ -42,8 +42,9 @@ def get_version() -> str:
     return "unknown"
 
 
-@app.callback()
+@app.callback(invoke_without_command=True)
 def main(
+    ctx: typer.Context,
     taskfile: Path | None = typer.Option(
         None,
         "--file",
@@ -55,6 +56,15 @@ def main(
         set_data_file(taskfile)
     else:
         reset_data_file()
+
+    if ctx.invoked_subcommand is None:
+        tasks = load_tasks()
+        if len(tasks) <= 2:
+            console.print(ctx.get_help())
+            raise typer.Exit()
+        else:
+            show_tasks(tasks, "■ 保存したタスク一覧")
+            print("[HELP] `later --help`")
 
 
 @app.command("version")

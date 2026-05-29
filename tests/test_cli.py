@@ -155,3 +155,30 @@ def test_version_command(invoke):
     result = invoke("version")
     assert result.exit_code == 0, result.output
     assert "later-cli v" in result.output
+
+
+def test_no_command_displays_help_when_tasks_are_two_or_fewer(invoke, taskfile):
+    # タスクが0件のとき（2つ以下）
+    result = invoke()
+    assert result.exit_code == 0, result.output
+    assert "Usage: " in result.output
+
+    # タスクが2件のとき（2つ以下）
+    invoke("add", "now", "タスク1")
+    invoke("add", "now", "タスク2")
+    result = invoke()
+    assert result.exit_code == 0, result.output
+    assert "Usage: " in result.output
+
+
+def test_no_command_displays_tasks_when_tasks_are_more_than_two(invoke, taskfile):
+    # タスクが3件のとき（2つより多い）
+    invoke("add", "now", "タスク1")
+    invoke("add", "now", "タスク2")
+    invoke("add", "now", "タスク3")
+    result = invoke()
+    assert result.exit_code == 0, result.output
+    assert "■ 保存したタスク一覧" in result.output
+    assert "タスク1" in result.output
+    assert "タスク2" in result.output
+    assert "タスク3" in result.output
