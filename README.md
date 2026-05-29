@@ -38,24 +38,19 @@ uv sync
 
 ```sh
 LATER_CLI_PATH="/path/to/later-cli"  # later-cliのパスに置き換える
-pushd $LATER_CLI_PATH >/dev/null
+PATH="$LATER_CLI_PATH:$PATH"
 # 起動時に期限の来たタスクをチェックする
-uv run later.py check
-popd >/dev/null
+later check
 ```
 
 ### Windowsの場合
 
-WindowsのPowerShellであれば、ユーザーフォルダにある `~\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1` というファイル（`$PROFILE` の値）をテキストエディタで開いて、下記のような内容を追加します。なお、ファイルやフォルダがない場合は作成して追加する必要があります。
-
-`uv run` を介して実行するように設定します。
+WindowsのPowerShellを使う場合、ユーザーフォルダにある `~\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1` というファイル（`$PROFILE` の値）をテキストエディタで開いて、下記のような内容を追加します。なお、ファイルやフォルダがない場合は作成して追加する必要があります。
 
 ```powershell
-$script = Join-Path (Split-Path $PROFILE) "later.py"
-uv run $script check
+cd /path/to/later-cli  # later-cliのパスに置き換える
+uv run later.py check
 ```
-
-そして、このファイルと同じフォルダに、先ほど作成した「later.py」と「storage.py」を保存します。そうすると、新規PowerShellウィンドウを開いたときに、このスクリプトが自動的に実行され、期限が来たタスクが表示されるようになります。
 
 ## later の使い方
 
