@@ -452,6 +452,9 @@ def delelete_alias(number: int):
 @app.command()
 def clear():
     """期限が過ぎたタスクを一括削除する"""
+    if not typer.confirm("期限が過ぎたタスクを削除しますか？", default=True):
+        print("キャンセルしました。")
+        return
     tasks = load_tasks()
     now = datetime.now()
     tasks_due = []
