@@ -206,7 +206,7 @@ def test_language_toggle(invoke, taskfile):
     assert "■ 保存したタスク一覧" in result.output
 
     # 英語に戻す
-    result = invoke("lang", "en")
+    result = invoke("language", "en")
     assert result.exit_code == 0, result.output
     assert "Display language has been set to English(en)." in result.output
 
