@@ -116,3 +116,25 @@ def test_add_with_specific_time(invoke, taskfile):
     assert len(tasks) == 1
     assert tasks[0]["task"] == "明日の予定タスク"
     assert tasks[0]["date"].endswith("10:00:00")
+
+
+def test_add_with_specific_date(invoke, taskfile):
+    result = invoke("add", "12/3 15:30", "特定の日の予定")
+    assert result.exit_code == 0, result.output
+    assert taskfile.exists()
+
+    tasks = json.loads(taskfile.read_text(encoding="utf-8"))
+    assert len(tasks) == 1
+    assert tasks[0]["task"] == "特定の日の予定"
+    assert "12-03 15:30:00" in tasks[0]["date"]
+
+
+def test_add_with_full_date(invoke, taskfile):
+    result = invoke("add", "2026-05-25 15:30", "年明示の予定")
+    assert result.exit_code == 0, result.output
+    assert taskfile.exists()
+
+    tasks = json.loads(taskfile.read_text(encoding="utf-8"))
+    assert len(tasks) == 1
+    assert tasks[0]["task"] == "年明示の予定"
+    assert tasks[0]["date"] == "2026-05-25 15:30:00"

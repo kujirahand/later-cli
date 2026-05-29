@@ -203,10 +203,74 @@ def calc_due_date(due: str) -> datetime:
                 f"指定された日付（第{nth}番目の{weekday_char}曜日）は存在しません。"
             )
 
+    # 年を含む特定日付指定のパース (例: "2026-05-25", "2026/5/25 15時", "5/25", "12/3 15:30")
+    date_match = re.fullmatch(
+        r"^(?:(?P<year>\d{4})[/\-年](?:の)?)?(?P<month>\d{1,2})[/\-月](?P<day>\d{1,2})日?(?:\s*(?:(?P<hour>\d+)時(?:(?P<minute>\d+)分)?|(?P<hour_colon>\d+):(?P<minute_colon>\d+)))?$",
+        normalized,
+    )
+    if date_match:
+        m = int(date_match.group("month"))
+        d = int(date_match.group("day"))
+        year_str = date_match.group("year")
+
+        # 時・分の取得 (デフォルトは朝8時)
+        h = 8
+        minute_val = 0
+
+        # 時刻指定がある場合
+        if date_match.group("hour") is not None:
+            h = int(date_match.group("hour"))
+            minute_val = (
+                int(date_match.group("minute"))
+                if date_match.group("minute") is not None
+                else 0
+            )
+        elif date_match.group("hour_colon") is not None:
+            h = int(date_match.group("hour_colon"))
+            minute_val = int(date_match.group("minute_colon"))
+
+        if (
+            not (1 <= m <= 12)
+            or not (1 <= d <= 31)
+            or not (0 <= h < 24)
+            or not (0 <= minute_val < 60)
+        ):
+            raise typer.BadParameter("日付または時刻の数値が正しい範囲外です。")
+
+        if year_str is not None:
+            # 年が明示されている場合
+            t_year = int(year_str)
+            try:
+                target_date = datetime(t_year, m, d, h, minute_val, 0)
+            except ValueError:
+                raise typer.BadParameter(
+                    f"指定された日付（{t_year}年{m}月{d}日）はカレンダー上に存在しません。"
+                )
+        else:
+            # 年が省略されている場合は「今年（過去なら来年）」にする
+            t_year = now.year
+            try:
+                target_date = datetime(t_year, m, d, h, minute_val, 0)
+            except ValueError:
+                raise typer.BadParameter(
+                    f"指定された日付（{m}月{d}日）はカレンダー上に存在しません。"
+                )
+
+            # 過去日付の場合は「来年」にする
+            if target_date.date() < now.date():
+                try:
+                    target_date = datetime(t_year + 1, m, d, h, minute_val, 0)
+                except ValueError:
+                    raise typer.BadParameter(
+                        f"指定された日付（{m}月{d}日）は来年のカレンダー上に存在しません。"
+                    )
+
+        return target_date
+
     match = re.fullmatch(r"(\d+)([dh日])", normalized)
     if not match:
         raise typer.BadParameter(
-            "期限は '3d' / '2h' や曜日（例: '来週月曜'）、第N曜日（例: '来月第二月曜'）の形式で指定してください。"
+            "期限は '3d' / '2h' や曜日（例: '来週月曜'）、日付（例: '5/25'）、時刻指定（例: '明日10時'）の形式で指定してください。"
         )
     amount = int(match.group(1))
     unit = match.group(2)
