@@ -488,3 +488,59 @@ def test_ls_todo_command(invoke, taskfile):
             if len(parts) >= 2 and parts[1].isdigit():
                 indices.append(parts[1])
     assert indices == ["1"]
+
+
+def test_renew_command(invoke, taskfile):
+    from storage import save_tasks, set_data_file
+
+    set_data_file(taskfile)
+
+    tasks = [
+        {
+            "date": "2026-06-01 10:00:00",
+            "task": "期限更新テストタスク",
+            "status": "todo",
+        }
+    ]
+    save_tasks(tasks)
+
+    # 期限を7日伸ばす (7d)
+    result = invoke("renew", "1", "7d")
+    assert result.exit_code == 0
+    assert "Renewed task" in result.output
+
+    data = json.loads(taskfile.read_text(encoding="utf-8"))
+    assert data["tasks"][0]["date"] == "2026-06-08 10:00:00"
+
+    # 期限を3時間伸ばす (3h)
+    invoke("renew", "1", "3h")
+    data = json.loads(taskfile.read_text(encoding="utf-8"))
+    assert data["tasks"][0]["date"] == "2026-06-08 13:00:00"
+
+    # 期限を30分伸ばす (30m)
+    invoke("renew", "1", "30m")
+    data = json.loads(taskfile.read_text(encoding="utf-8"))
+    assert data["tasks"][0]["date"] == "2026-06-08 13:30:00"
+
+    # 日本語単位で3日伸ばす (3日)
+    invoke("renew", "1", "3日")
+    data = json.loads(taskfile.read_text(encoding="utf-8"))
+    assert data["tasks"][0]["date"] == "2026-06-11 13:30:00"
+
+    # 期限を1週間伸ばす (1w)
+    invoke("renew", "1", "1w")
+    data = json.loads(taskfile.read_text(encoding="utf-8"))
+    assert data["tasks"][0]["date"] == "2026-06-18 13:30:00"
+
+    # 日本語単位で2週間伸ばす (2週間)
+    invoke("renew", "1", "2週間")
+    data = json.loads(taskfile.read_text(encoding="utf-8"))
+    assert data["tasks"][0]["date"] == "2026-07-02 13:30:00"
+
+    # 無効なインデックス
+    result = invoke("renew", "2", "1d")
+    assert result.exit_code != 0
+
+    # 無効なオフセット形式
+    result = invoke("renew", "1", "abc")
+    assert result.exit_code != 0

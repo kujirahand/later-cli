@@ -140,6 +140,11 @@ Examples:
 
 ## 詳しい使い方
 
-以下のマイナビ様の連載で、プログラムの使い方や、プログラムの詳しい解説を掲載しています。
+以下のマイナビ様の連載で、プログラムの解説や簡単な使い方を紹介しています。
 
 - https://news.mynavi.jp/techplus/article/zeropython-138/
+
+## GitHub Repository
+
+- [GitHub > later-cli](https://github.com/kujirahand/later-cli)
+- [PyPI > later-cli](https://pypi.org/project/later-cli/)

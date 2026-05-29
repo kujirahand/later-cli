@@ -82,6 +82,7 @@ MESSAGES = {
         "status_done": "[green]done[/green]",
         "marked_done": "Marked task as done: {}",
         "marked_todo": "Marked task as todo: {}",
+        "renewed_task": "Renewed task '{}': new due date is {}",
     },
     "ja": {
         "added_title": "[bold yellow]新しいタスクを追加しました！[/]",
@@ -124,6 +125,7 @@ MESSAGES = {
         "status_done": "[green]完了[/green]",
         "marked_done": "タスクを完了にしました: {}",
         "marked_todo": "タスクを未完了にしました: {}",
+        "renewed_task": "タスクの期限を更新しました '{}': 新しい期限は {}",
     },
 }
 
@@ -847,6 +849,51 @@ def todo(number: int):
     tasks[number - 1]["status"] = "todo"
     save_tasks(tasks)
     console.print(get_msg("marked_todo", tasks[number - 1]["task"]))
+    show()
+
+
+def parse_offset(offset_str: str) -> timedelta:
+    """Parse an offset expression (e.g. '7d', '2h', '30m', '1w') and return a timedelta."""
+    normalized = offset_str.strip().lower()
+    match = re.fullmatch(r"^(\d+)([dhmw日分時週]|週間)$", normalized)
+    if not match:
+        raise typer.BadParameter(get_msg("err_date_format"))
+    amount = int(match.group(1))
+    unit = match.group(2)
+    if unit in ("d", "日"):
+        return timedelta(days=amount)
+    if unit in ("w", "週", "週間"):
+        return timedelta(weeks=amount)
+    if unit in ("h", "時"):
+        return timedelta(hours=amount)
+    if unit in ("m", "分"):
+        return timedelta(minutes=amount)
+    raise typer.BadParameter(get_msg("err_date_format"))
+
+
+@app.command()
+def renew(number: int, offset: str):
+    """
+    Extend the due date of a task by a specified offset (e.g. 7d, 2h).
+    """
+    tasks = load_tasks()
+    if number < 1 or number > len(tasks):
+        raise typer.BadParameter(get_msg("err_idx_range", len(tasks)))
+
+    task = tasks[number - 1]
+    try:
+        current_due = datetime.strptime(task["date"], "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        raise typer.BadParameter(get_msg("err_date_range"))
+
+    delta = parse_offset(offset)
+    new_due = current_due + delta
+
+    # Update date and save
+    task["date"] = new_due.strftime("%Y-%m-%d %H:%M:%S")
+    save_tasks(tasks)
+
+    console.print(get_msg("renewed_task", task["task"], task["date"]))
     show()
 
 
