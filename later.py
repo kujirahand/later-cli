@@ -269,8 +269,6 @@ def add(due: str, task: str):
         notify_at_s
     )
     console.print(added_table)
-    console.print()  # 改行を挟む
-    show_tasks(sorted_tasks, "■ 保存したタスク一覧")
 
 
 @app.command("a")
