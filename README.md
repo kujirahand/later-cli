@@ -89,6 +89,8 @@ Commands:
   cal           Show weekly schedule in calendar format
   info          Show the data file path
   version       Show version information
+  language      Set display language (en / ja)
+  lang          Alias for language
   --file FILE   Use FILE as the task JSON file
   --help        Show this help message
 
@@ -115,6 +117,8 @@ Examples:
   later.py cal                          # 週間予定をカレンダー形式で表示
   later.py info                         # データの保存場所を表示
   later.py version                      # バージョン情報を表示
+  later.py language ja                  # 表示言語を日本語(ja)に設定
+  later.py lang en                      # 表示言語を英語(en)に設定
   later.py --file /tmp/tasks.json add now "テスト" # 指定したファイルにタスクを追加
 ```
 

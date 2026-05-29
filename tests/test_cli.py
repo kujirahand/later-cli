@@ -34,7 +34,8 @@ def test_add_writes_to_selected_file_and_show_reads_it(invoke, taskfile):
     assert result.exit_code == 0, result.output
     assert taskfile.exists()
 
-    tasks = json.loads(taskfile.read_text(encoding="utf-8"))
+    data = json.loads(taskfile.read_text(encoding="utf-8"))
+    tasks = data["tasks"]
     assert len(tasks) == 1
     assert tasks[0]["task"] == "テスト用タスク"
 
@@ -49,10 +50,10 @@ def test_delete_removes_task_from_selected_file(invoke, taskfile):
 
     result = invoke("delete", "1")
     assert result.exit_code == 0, result.output
-    assert "タスクを削除しました: 削除するタスク" in result.output
+    assert "Deleted task: 削除するタスク" in result.output
 
-    tasks = json.loads(taskfile.read_text(encoding="utf-8"))
-    assert tasks == []
+    data = json.loads(taskfile.read_text(encoding="utf-8"))
+    assert data["tasks"] == []
 
 
 def test_info_shows_selected_file(invoke, taskfile):
@@ -77,7 +78,8 @@ def test_add_with_weekday(invoke, taskfile):
     assert result.exit_code == 0, result.output
     assert taskfile.exists()
 
-    tasks = json.loads(taskfile.read_text(encoding="utf-8"))
+    data = json.loads(taskfile.read_text(encoding="utf-8"))
+    tasks = data["tasks"]
     assert len(tasks) == 1
     assert tasks[0]["task"] == "来週月曜のタスク"
     assert tasks[0]["date"].endswith("08:00:00")
@@ -88,7 +90,8 @@ def test_add_with_nth_weekday(invoke, taskfile):
     assert result.exit_code == 0, result.output
     assert taskfile.exists()
 
-    tasks = json.loads(taskfile.read_text(encoding="utf-8"))
+    data = json.loads(taskfile.read_text(encoding="utf-8"))
+    tasks = data["tasks"]
     assert len(tasks) == 1
     assert tasks[0]["task"] == "来月第二月曜のタスク"
     assert tasks[0]["date"].endswith("08:00:00")
@@ -101,7 +104,7 @@ def test_cal_mode_shows_tasks_in_calendar(invoke, taskfile):
 
     result = invoke("cal")
     assert result.exit_code == 0, result.output
-    assert "■ 週間カレンダー" in result.output
+    assert "■ Weekly Calendar" in result.output
     assert "今日の予定" in result.output
     assert "明日の予定" in result.output
     assert "来週の予定" not in result.output
@@ -112,7 +115,8 @@ def test_add_with_specific_time(invoke, taskfile):
     assert result.exit_code == 0, result.output
     assert taskfile.exists()
 
-    tasks = json.loads(taskfile.read_text(encoding="utf-8"))
+    data = json.loads(taskfile.read_text(encoding="utf-8"))
+    tasks = data["tasks"]
     assert len(tasks) == 1
     assert tasks[0]["task"] == "明日の予定タスク"
     assert tasks[0]["date"].endswith("10:00:00")
@@ -123,7 +127,8 @@ def test_add_with_specific_date(invoke, taskfile):
     assert result.exit_code == 0, result.output
     assert taskfile.exists()
 
-    tasks = json.loads(taskfile.read_text(encoding="utf-8"))
+    data = json.loads(taskfile.read_text(encoding="utf-8"))
+    tasks = data["tasks"]
     assert len(tasks) == 1
     assert tasks[0]["task"] == "特定の日の予定"
     assert "12-03 15:30:00" in tasks[0]["date"]
@@ -134,7 +139,8 @@ def test_add_with_full_date(invoke, taskfile):
     assert result.exit_code == 0, result.output
     assert taskfile.exists()
 
-    tasks = json.loads(taskfile.read_text(encoding="utf-8"))
+    data = json.loads(taskfile.read_text(encoding="utf-8"))
+    tasks = data["tasks"]
     assert len(tasks) == 1
     assert tasks[0]["task"] == "年明示の予定"
     assert tasks[0]["date"] == "2026-05-25 15:30:00"
@@ -145,7 +151,8 @@ def test_add_with_today(invoke, taskfile):
     assert result.exit_code == 0, result.output
     assert taskfile.exists()
 
-    tasks = json.loads(taskfile.read_text(encoding="utf-8"))
+    data = json.loads(taskfile.read_text(encoding="utf-8"))
+    tasks = data["tasks"]
     assert len(tasks) == 1
     assert tasks[0]["task"] == "今日の朝の予定"
     assert tasks[0]["date"].endswith("08:00:00")
@@ -178,7 +185,30 @@ def test_no_command_displays_tasks_when_tasks_are_more_than_two(invoke, taskfile
     invoke("add", "now", "タスク3")
     result = invoke()
     assert result.exit_code == 0, result.output
-    assert "■ 保存したタスク一覧" in result.output
+    assert "■ Saved Tasks" in result.output
     assert "タスク1" in result.output
     assert "タスク2" in result.output
     assert "タスク3" in result.output
+
+
+def test_language_toggle(invoke, taskfile):
+    # 初期状態は英語 (en)
+    result = invoke("add", "now", "タスク1")
+    assert "Added new task!" in result.output
+
+    # 日本語に変更
+    result = invoke("language", "ja")
+    assert result.exit_code == 0, result.output
+    assert "表示言語を日本語(ja)に設定しました。" in result.output
+
+    # 日本語になっていることを確認
+    result = invoke("show")
+    assert "■ 保存したタスク一覧" in result.output
+
+    # 英語に戻す
+    result = invoke("lang", "en")
+    assert result.exit_code == 0, result.output
+    assert "Display language has been set to English(en)." in result.output
+
+    result = invoke("show")
+    assert "■ Saved Tasks" in result.output

@@ -23,18 +23,62 @@ def get_data_file():
     return DATA_FILE
 
 
-def save_tasks(tasks):
-    """ "タスクを JSON ファイルに保存する"""  # --- (*2)
-    tasks.sort(key=lambda x: x["date"])
+def load_raw_data() -> dict:
+    """JSONファイルから生データを読み込み、辞書形式に統一して返す"""
+    if not os.path.exists(DATA_FILE):
+        return {"language": "en", "tasks": []}
+    
+    try:
+        with open(DATA_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception:
+        return {"language": "en", "tasks": []}
+
+    # 従来のリスト形式だった場合の互換性維持
+    if isinstance(data, list):
+        return {"language": "en", "tasks": data}
+    elif isinstance(data, dict):
+        if "language" not in data:
+            data["language"] = "en"
+        if "tasks" not in data:
+            data["tasks"] = []
+        return data
+    else:
+        return {"language": "en", "tasks": []}
+
+
+def save_raw_data(data: dict):
+    """辞書データを JSON ファイルに書き込む"""
+    if "tasks" in data:
+        data["tasks"].sort(key=lambda x: x["date"])
+    
     with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(tasks, f, indent=4, ensure_ascii=False)
+        json.dump(data, f, indent=4, ensure_ascii=False)
+
+
+def save_tasks(tasks):
+    """タスクを JSON ファイルに保存する"""  # --- (*2)
+    data = load_raw_data()
+    data["tasks"] = tasks
+    save_raw_data(data)
 
 
 def load_tasks():
     """タスクを JSON ファイルから読み込む"""  # --- (*3)
-    if not os.path.exists(DATA_FILE):
-        return []
-    with open(DATA_FILE, "r", encoding="utf-8") as f:
-        tasks = json.load(f)
-        tasks.sort(key=lambda x: x["date"])
-        return tasks
+    data = load_raw_data()
+    tasks = data.get("tasks", [])
+    tasks.sort(key=lambda x: x["date"])
+    return tasks
+
+
+def get_language() -> str:
+    """設定されている言語（ja/enなど）を返す。デフォルトは 'en'"""
+    data = load_raw_data()
+    return data.get("language", "en")
+
+
+def set_language(lang: str):
+    """言語（ja/enなど）をJSONファイルに保存する"""
+    data = load_raw_data()
+    data["language"] = lang
+    save_raw_data(data)

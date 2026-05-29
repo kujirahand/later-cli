@@ -15,11 +15,92 @@ from storage import (
     get_data_file,
     reset_data_file,
     set_data_file,
+    get_language,
 )
 
 # TyperやConsoleのインスタンスを作成
 app = typer.Typer(no_args_is_help=False, add_completion=True)
 console = Console()
+
+MESSAGES = {
+    "en": {
+        "added_title": "[bold yellow]Added new task![/]",
+        "col_pos": "Position",
+        "col_task": "Task",
+        "col_due": "Due Date",
+        "no_tasks": "- [bold green]later:[/bold green] [blue]No tasks found.[/blue]",
+        "list_title": "■ Saved Tasks",
+        "col_no": "No.",
+        "col_remaining": "Remaining",
+        "overdue": "[red]Overdue[/red]",
+        "overdue_ago": "[red]Overdue ({} ago)[/red]",
+        "unknown": "Unknown",
+        "soon": "Soon",
+        "unit_d": "d",
+        "unit_h": "h",
+        "unit_m": "m",
+        "err_idx_range": "Number must be between 1 and {}.",
+        "deleted_task": "Deleted task: {}",
+        "clear_confirm": "Do you want to delete overdue tasks?",
+        "cancelled": "Cancelled.",
+        "clear_done": "Deleted overdue tasks. Remaining tasks: {}",
+        "due_tasks_title": "■ Due Tasks",
+        "cal_title_weekly": "■ Weekly Calendar",
+        "cal_title_days": "■ {}-Day Calendar",
+        "col_date": "Date",
+        "col_offset": "Offset",
+        "cal_today": "Today",
+        "cal_tomorrow": "Tomorrow",
+        "info_saved_in": "Tasks are saved in the following file:",
+        "err_invalid_time": "Time must be in the correct range (0-23 hours, 0-59 minutes).",
+        "err_invalid_nth_weekday": "The specified date (Nth weekday) does not exist.",
+        "err_date_range": "Date or time values are out of range.",
+        "err_date_not_exist": "The specified date ({}) does not exist.",
+        "err_date_format": "Due date must be in a format like '3d', '2h', weekdays, dates, or specific times.",
+    },
+    "ja": {
+        "added_title": "[bold yellow]新しいタスクを追加しました！[/]",
+        "col_pos": "追加位置",
+        "col_task": "タスク内容",
+        "col_due": "通知日時",
+        "no_tasks": "- [bold green]later:[/bold green] [blue]タスクはありません。[/blue]",
+        "list_title": "■ 保存したタスク一覧",
+        "col_no": "番号",
+        "col_remaining": "残り",
+        "overdue": "[red]超過[/red]",
+        "overdue_ago": "[red]超過 ({}前)[/red]",
+        "unknown": "不明",
+        "soon": "間もなく",
+        "unit_d": "日",
+        "unit_h": "時間",
+        "unit_m": "分",
+        "err_idx_range": "番号は 1 から {} の範囲で指定してください。",
+        "deleted_task": "タスクを削除しました: {}",
+        "clear_confirm": "期限が過ぎたタスクを削除しますか？",
+        "cancelled": "キャンセルしました。",
+        "clear_done": "期限が過ぎたタスクを削除しました。残りのタスク数: {}",
+        "due_tasks_title": "■ 期限が来たタスク",
+        "cal_title_weekly": "■ 週間カレンダー",
+        "cal_title_days": "■ {}日カレンダー",
+        "col_date": "日付",
+        "col_offset": "+d",
+        "cal_today": "今日",
+        "cal_tomorrow": "明日",
+        "info_saved_in": "タスクは以下のファイルに保存されています:",
+        "err_invalid_time": "時刻は正しい範囲 (0時〜23時, 0分〜59分) で指定してください。",
+        "err_invalid_nth_weekday": "指定された日付（第{}番目の{}曜日）は存在しません。",
+        "err_date_range": "日付または時刻の数値が正しい範囲外です。",
+        "err_date_not_exist": "指定された日付（{}）はカレンダー上に存在しません。",
+        "err_date_format": "期限は '3d' / '2h' や曜日（例: '来週月曜'）、日付（例: '5/25'）、時刻指定（例: '明日10時'）の形式で指定してください。",
+    }
+}
+
+
+def get_msg(key: str, *args, **kwargs) -> str:
+    """設定された言語に応じたメッセージを取得する"""
+    lang = get_language()
+    msg_tpl = MESSAGES.get(lang, MESSAGES["en"]).get(key, MESSAGES["en"][key])
+    return msg_tpl.format(*args, **kwargs)
 
 
 def get_version() -> str:
@@ -63,7 +144,7 @@ def main(
             console.print(ctx.get_help())
             raise typer.Exit()
         else:
-            show_tasks(tasks, "■ 保存したタスク一覧")
+            show_tasks(tasks, get_msg("list_title"))
             print("[HELP] `later --help`")
 
 
@@ -137,9 +218,7 @@ def calc_due_date(due: str) -> datetime:
             m = int(time_match.group("minute_colon"))
 
         if not (0 <= h < 24) or not (0 <= m < 60):
-            raise typer.BadParameter(
-                "時刻は正しい範囲 (0時〜23時, 0分〜59分) で指定してください。"
-            )
+            raise typer.BadParameter(get_msg("err_invalid_time"))
 
         # 日付のベースを決定
         if day_word == "明日":
@@ -242,7 +321,7 @@ def calc_due_date(due: str) -> datetime:
             return target_date
         except ValueError:
             raise typer.BadParameter(
-                f"指定された日付（第{nth}番目の{weekday_char}曜日）は存在しません。"
+                get_msg("err_invalid_nth_weekday", nth, weekday_char)
             )
 
     # 年を含む特定日付指定のパース (例: "2026-05-25", "2026/5/25 15時", "5/25", "12/3 15:30")
@@ -277,7 +356,7 @@ def calc_due_date(due: str) -> datetime:
             or not (0 <= h < 24)
             or not (0 <= minute_val < 60)
         ):
-            raise typer.BadParameter("日付または時刻の数値が正しい範囲外です。")
+            raise typer.BadParameter(get_msg("err_date_range"))
 
         if year_str is not None:
             # 年が明示されている場合
@@ -286,7 +365,7 @@ def calc_due_date(due: str) -> datetime:
                 target_date = datetime(t_year, m, d, h, minute_val, 0)
             except ValueError:
                 raise typer.BadParameter(
-                    f"指定された日付（{t_year}年{m}月{d}日）はカレンダー上に存在しません。"
+                    get_msg("err_date_not_exist", f"{t_year}-{m:02d}-{d:02d}")
                 )
         else:
             # 年が省略されている場合は「今年（過去なら来年）」にする
@@ -295,7 +374,7 @@ def calc_due_date(due: str) -> datetime:
                 target_date = datetime(t_year, m, d, h, minute_val, 0)
             except ValueError:
                 raise typer.BadParameter(
-                    f"指定された日付（{m}月{d}日）はカレンダー上に存在しません。"
+                    get_msg("err_date_not_exist", f"{m:02d}-{d:02d}")
                 )
 
             # 過去日付の場合は「来年」にする
@@ -304,16 +383,14 @@ def calc_due_date(due: str) -> datetime:
                     target_date = datetime(t_year + 1, m, d, h, minute_val, 0)
                 except ValueError:
                     raise typer.BadParameter(
-                        f"指定された日付（{m}月{d}日）は来年のカレンダー上に存在しません。"
+                        get_msg("err_date_not_exist", f"{m:02d}-{d:02d}")
                     )
 
         return target_date
 
     match = re.fullmatch(r"(\d+)([dh日])", normalized)
     if not match:
-        raise typer.BadParameter(
-            "期限は '3d' / '2h' や曜日（例: '来週月曜'）、日付（例: '5/25'）、時刻指定（例: '明日10時'）の形式で指定してください。"
-        )
+        raise typer.BadParameter(get_msg("err_date_format"))
     amount = int(match.group(1))
     unit = match.group(2)
     if unit == "d":
@@ -360,14 +437,14 @@ def add(due: str, task: str):
 
     # 追加成功テーブルを作成
     added_table = Table(
-        title="[bold yellow]新しいタスクを追加しました！[/]",
+        title=get_msg("added_title"),
         box=box.ROUNDED,
         show_header=True,
         header_style="bold magenta",
     )
-    added_table.add_column("追加位置", justify="center")
-    added_table.add_column("タスク内容", style="cyan")
-    added_table.add_column("通知日時", style="green")
+    added_table.add_column(get_msg("col_pos"), justify="center")
+    added_table.add_column(get_msg("col_task"), style="cyan")
+    added_table.add_column(get_msg("col_due"), style="green")
 
     added_table.add_row(
         f"[bold green]{added_idx}[/]",
@@ -379,7 +456,7 @@ def add(due: str, task: str):
 
 @app.command("a")
 def add_short(due: str, task: str):
-    """ addコマンドのエイリアスでタスクを追加する """
+    """ alias for `add` command """
     add(due, task)
 
 
@@ -388,7 +465,7 @@ def get_countdown_str(date_str: str) -> str:
     try:
         notify_at = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
     except ValueError:
-        return "不明"
+        return get_msg("unknown")
     now = datetime.now()
     delta = notify_at - now
     if delta.total_seconds() > 0:
@@ -398,14 +475,14 @@ def get_countdown_str(date_str: str) -> str:
         
         parts = []
         if days > 0:
-            parts.append(f"{days}日")
+            parts.append(f"{days}{get_msg('unit_d')}")
         if hours > 0:
-            parts.append(f"{hours}時間")
+            parts.append(f"{hours}{get_msg('unit_h')}")
         if minutes > 0:
-            parts.append(f"{minutes}分")
+            parts.append(f"{minutes}{get_msg('unit_m')}")
         
         if not parts:
-            return "間もなく"
+            return get_msg("soon")
         return "".join(parts)
     else:
         overdue_delta = now - notify_at
@@ -415,33 +492,31 @@ def get_countdown_str(date_str: str) -> str:
         
         parts = []
         if days > 0:
-            parts.append(f"{days}日")
+            parts.append(f"{days}{get_msg('unit_d')}")
         if hours > 0:
-            parts.append(f"{hours}時間")
+            parts.append(f"{hours}{get_msg('unit_h')}")
         if minutes > 0:
-            parts.append(f"{minutes}分")
+            parts.append(f"{minutes}{get_msg('unit_m')}")
             
         if not parts:
-            return "[red]超過[/red]"
-        return f"[red]超過 ({''.join(parts)}前)[/red]"
+            return get_msg("overdue")
+        return get_msg("overdue_ago", "".join(parts))
 
 
 def show_tasks(tasks: list[dict], title: str):
     """タスクのリストを表形式で表示する"""
     if len(tasks) == 0:
         # タスクがない場合はメッセージを表示して終了
-        console.print(
-            "- [bold green]later:[/bold green] [blue]タスクはありません。[/blue]"
-        )
+        console.print(get_msg("no_tasks"))
         return
     table = Table(
         title=title,
         show_lines=False,
         box=box.ROUNDED)
-    table.add_column("番号", justify="right")
-    table.add_column("タスク", style="red")
-    table.add_column("期限", style="green")
-    table.add_column("残り", style="cyan")
+    table.add_column(get_msg("col_no"), justify="right")
+    table.add_column(get_msg("col_task"), style="red")
+    table.add_column(get_msg("col_due"), style="green")
+    table.add_column(get_msg("col_remaining"), style="cyan")
     for idx, task in enumerate(tasks, start=1):
         countdown = get_countdown_str(task["date"])
         table.add_row(f"{idx}", task["task"], task["date"], countdown)
@@ -452,46 +527,44 @@ def show_tasks(tasks: list[dict], title: str):
 def show_alias():
     """タスク一覧を表示"""
     tasks = load_tasks()
-    show_tasks(tasks, "■ 保存したタスク一覧")
+    show_tasks(tasks, get_msg("list_title"))
 
 
 @app.command("ls")
 def list_alias():
-    """listのエイリアスでタスク一覧を表示"""
+    """alias for `list` command"""
     tasks = load_tasks()
-    show_tasks(tasks, "■ 保存したタスク一覧")
+    show_tasks(tasks, get_msg("list_title"))
 
 @app.command()
 def show():
-    """listのエイリアスでタスク一覧を表示"""
+    """alias for `list` command"""
     tasks = load_tasks()
-    show_tasks(tasks, "■ 保存したタスク一覧")
+    show_tasks(tasks, get_msg("list_title"))
 
 @app.command()
 def delete(number: int):
-    """番号を指定してタスクを削除する (例: later.py delete 1)"""
+    """Delete a task by number (例: later.py delete 1)"""
     tasks = load_tasks()
     if number < 1 or number > len(tasks):
-        raise typer.BadParameter(
-            f"番号は 1 から {len(tasks)} の範囲で指定してください。"
-        )
+        raise typer.BadParameter(get_msg("err_idx_range", len(tasks)))
     deleted_task = tasks.pop(number - 1)
     save_tasks(tasks)
-    print(f"タスクを削除しました: {deleted_task['task']}")
+    print(get_msg("deleted_task", deleted_task['task']))
     show()
 
 
 @app.command("del")
 def delelete_alias(number: int):
-    """deleteコマンドのエイリアス"""
+    """alias for `delete` command"""
     delete(number)
 
 
 @app.command()
 def clear():
     """期限が過ぎたタスクを一括削除する"""
-    if not typer.confirm("期限が過ぎたタスクを削除しますか？", default=True):
-        print("キャンセルしました。")
+    if not typer.confirm(get_msg("clear_confirm"), default=True):
+        print(get_msg("cancelled"))
         return
     tasks = load_tasks()
     now = datetime.now()
@@ -502,7 +575,7 @@ def clear():
         if remove_date > now:
             tasks_due.append(task)
     save_tasks(tasks_due)
-    print(f"期限が過ぎたタスクを削除しました。残りのタスク数: {len(tasks_due)}")
+    print(get_msg("clear_done", len(tasks_due)))
     show()  # 更新後のタスクを表示
 
 
@@ -516,17 +589,17 @@ def check():
         notify_at = datetime.strptime(task["date"], "%Y-%m-%d %H:%M:%S")
         if notify_at <= now:
             tasks_due.append(task)
-    show_tasks(tasks_due, "■ 期限が来たタスク")
+    show_tasks(tasks_due, get_msg("due_tasks_title"))
 
 @app.command("c")
 def check_alias():
-    """checkコマンドのエイリアス"""
+    """alias for `check` command"""
     check()
 
 
 def show_cal(days: int = 7):
     """週間予定をカレンダー形式で表示する"""
-    title = "■ 週間カレンダー" if days == 7 else f"■ {days}日カレンダー"
+    title = get_msg("cal_title_weekly") if days == 7 else get_msg("cal_title_days", days)
     tasks = load_tasks()
     now = datetime.now()
 
@@ -546,19 +619,19 @@ def show_cal(days: int = 7):
         show_header=True,
         show_lines=False,
     )
-    table.add_column("日付", justify="center", style="bold")
-    table.add_column("+d", justify="center")
-    table.add_column("タスク", style="cyan")
+    table.add_column(get_msg("col_date"), justify="center", style="bold")
+    table.add_column(get_msg("col_offset"), justify="center")
+    table.add_column(get_msg("col_task"), style="cyan")
 
     for i in range(days):
         target_date = (now + timedelta(days=i)).date()
         date_str = target_date.strftime("%m/%d")
 
         if i == 0:
-            rel_str = "今日"
+            rel_str = get_msg("cal_today")
             color = "bold magenta"
         elif i == 1:
-            rel_str = "明日"
+            rel_str = get_msg("cal_tomorrow")
             color = "bold green"
         else:
             rel_str = f"+{i}d"
@@ -589,8 +662,28 @@ def cal30():
 @app.command("info")
 def info():
     """情報を表示"""
-    print("タスクは以下のファイルに保存されています:")
+    print(get_msg("info_saved_in"))
     print(get_data_file())
+
+
+@app.command("language")
+def language_cmd(lang: str):
+    """
+    表示言語を変更する (en / ja)
+    
+    Change display language (en / ja)
+    """
+    normalized = lang.strip().lower()
+    if normalized not in ("en", "ja"):
+        raise typer.BadParameter("Language must be 'en' or 'ja'. (言語は 'en' または 'ja' を指定してください。)")
+    
+    from storage import set_language
+    set_language(normalized)
+    
+    if normalized == "ja":
+        console.print("[green]表示言語を日本語(ja)に設定しました。[/green]")
+    else:
+        console.print("[green]Display language has been set to English(en).[/green]")
 
 
 if __name__ == "__main__":
