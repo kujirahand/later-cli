@@ -544,3 +544,45 @@ def test_renew_command(invoke, taskfile):
     # 無効なオフセット形式
     result = invoke("renew", "1", "abc")
     assert result.exit_code != 0
+
+
+def test_guid_allocation(invoke, taskfile):
+    from storage import set_data_file, load_tasks
+    import json
+
+    # 1. 互換性の検証: GUIDなしの古いタスクをJSONファイルに直接書き込む
+    set_data_file(taskfile)
+    legacy_data = {
+        "language": "en",
+        "tasks": [
+            {"date": "2026-06-01 10:00:00", "task": "レガシータスク1", "status": "todo"}
+        ],
+    }
+    taskfile.write_text(json.dumps(legacy_data, ensure_ascii=False), encoding="utf-8")
+
+    # load_tasks が呼び出された時点で、GUIDが自動生成され保存されるはず
+    tasks = load_tasks()
+    assert len(tasks) == 1
+    assert "guid" in tasks[0]
+    guid1 = tasks[0]["guid"]
+    assert len(guid1) == 36  # UUID v4 はハイフン込みで36文字
+
+    # JSONファイルを再読込して、永続化されたことを検証
+    saved_data = json.loads(taskfile.read_text(encoding="utf-8"))
+    assert saved_data["tasks"][0]["guid"] == guid1
+
+    # 2. 新規追加の検証: CLI経由で新規追加されたタスクにもGUIDが最初から付与されること
+    invoke("add", "tomorrow", "新規追加タスク")
+
+    saved_data2 = json.loads(taskfile.read_text(encoding="utf-8"))
+    assert len(saved_data2["tasks"]) == 2
+
+    # 元のタスクのGUIDが変わっていないことを検証
+    t1 = next(t for t in saved_data2["tasks"] if t["task"] == "レガシータスク1")
+    assert t1["guid"] == guid1
+
+    # 新規タスクに新しいGUIDが割り当てられていることを検証
+    t2 = next(t for t in saved_data2["tasks"] if t["task"] == "新規追加タスク")
+    assert "guid" in t2
+    assert len(t2["guid"]) == 36
+    assert t2["guid"] != guid1

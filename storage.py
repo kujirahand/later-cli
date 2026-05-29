@@ -1,5 +1,6 @@
 import json
 import os
+import uuid
 
 # Path to the JSON file used to store tasks --- (*1)
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -59,6 +60,10 @@ def save_raw_data(data: dict):
 def save_tasks(tasks):
     """Save tasks to the JSON file."""  # --- (*2)
     data = load_raw_data()
+    # Automatically add a unique GUID to any new tasks that don't have one
+    for task in tasks:
+        if "guid" not in task:
+            task["guid"] = str(uuid.uuid4())
     data["tasks"] = tasks
     save_raw_data(data)
 
@@ -67,6 +72,18 @@ def load_tasks():
     """Load tasks from the JSON file."""  # --- (*3)
     data = load_raw_data()
     tasks = data.get("tasks", [])
+
+    # Backwards compatibility: add a unique GUID to legacy tasks that don't have one
+    updated = False
+    for task in tasks:
+        if "guid" not in task:
+            task["guid"] = str(uuid.uuid4())
+            updated = True
+
+    if updated:
+        data["tasks"] = tasks
+        save_raw_data(data)
+
     tasks.sort(key=lambda x: x["date"])
     return tasks
 
