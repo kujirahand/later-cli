@@ -6,6 +6,8 @@ A CLI task management tool. It is a simple program for managing tasks from the c
 
 ![A simple task management tool for the terminal: later](https://raw.githubusercontent.com/kujirahand/later-cli/refs/heads/main/doc/preview.png)
 
+- [日本語はこちら](https://github.com/kujirahand/later-cli/blob/main/README-ja.md)
+
 ## Installation
 
 Requires Python 3.10 or later.

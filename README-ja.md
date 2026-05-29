@@ -6,6 +6,8 @@ later-cliは、ターミナルで簡単にタスクを管理できるシンプ�
 
 ![A simple task management tool for the terminal: later](https://raw.githubusercontent.com/kujirahand/later-cli/refs/heads/main/doc/preview.png)
 
+- [English here](https://github.com/kujirahand/later-cli/blob/main/README.md)
+
 ## インストール方法
 
 Python 3.10以降が必要です。
