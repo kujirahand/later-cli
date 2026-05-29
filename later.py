@@ -96,6 +96,49 @@ def add_short(due: str, task: str):
     add(due, task)
 
 
+def get_countdown_str(date_str: str) -> str:
+    """期限までのカウントダウン文字列を取得する"""
+    try:
+        notify_at = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        return "不明"
+    now = datetime.now()
+    delta = notify_at - now
+    if delta.total_seconds() > 0:
+        days = delta.days
+        hours, remainder = divmod(delta.seconds, 3600)
+        minutes, _ = divmod(remainder, 60)
+        
+        parts = []
+        if days > 0:
+            parts.append(f"{days}日")
+        if hours > 0:
+            parts.append(f"{hours}時間")
+        if minutes > 0:
+            parts.append(f"{minutes}分")
+        
+        if not parts:
+            return "間もなく"
+        return "".join(parts)
+    else:
+        overdue_delta = now - notify_at
+        days = overdue_delta.days
+        hours, remainder = divmod(overdue_delta.seconds, 3600)
+        minutes, _ = divmod(remainder, 60)
+        
+        parts = []
+        if days > 0:
+            parts.append(f"{days}日")
+        if hours > 0:
+            parts.append(f"{hours}時間")
+        if minutes > 0:
+            parts.append(f"{minutes}分")
+            
+        if not parts:
+            return "[red]超過[/red]"
+        return f"[red]超過 ({''.join(parts)}前)[/red]"
+
+
 def show_tasks(tasks: list[dict], title: str):
     """タスクのリストを表形式で表示する"""
     if len(tasks) == 0:
@@ -108,8 +151,10 @@ def show_tasks(tasks: list[dict], title: str):
     table.add_column("番号", justify="right")
     table.add_column("タスク", style="red")
     table.add_column("期限", style="green")
+    table.add_column("残り", style="cyan")
     for idx, task in enumerate(tasks, start=1):
-        table.add_row(f"{idx}", task["task"], task["date"])
+        countdown = get_countdown_str(task["date"])
+        table.add_row(f"{idx}", task["task"], task["date"], countdown)
     console.print(table)
 
 
