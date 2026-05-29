@@ -483,9 +483,9 @@ def check_alias():
     check()
 
 
-@app.command("cal")
-def cal():
+def show_cal(days: int = 7):
     """週間予定をカレンダー形式で表示する"""
+    title = "■ 週間カレンダー" if days == 7 else f"■ {days}日カレンダー"
     tasks = load_tasks()
     now = datetime.now()
 
@@ -501,17 +501,17 @@ def cal():
 
     # 枠線とヘッダーを表示し、カラムを分離して構成
     table = Table(
-        title="■ 週間カレンダー",
+        title=title,
         show_header=True,
         show_lines=False,
     )
     table.add_column("日付", justify="center", style="bold")
-    table.add_column("何日後", justify="center")
+    table.add_column("+d", justify="center")
     table.add_column("タスク", style="cyan")
 
-    for i in range(7):
+    for i in range(days):
         target_date = (now + timedelta(days=i)).date()
-        date_str = target_date.strftime("%m-%d")
+        date_str = target_date.strftime("%m/%d")
 
         if i == 0:
             rel_str = "今日"
@@ -519,11 +519,8 @@ def cal():
         elif i == 1:
             rel_str = "明日"
             color = "bold green"
-        elif i == 2:
-            rel_str = "明後日"
-            color = "bold yellow"
         else:
-            rel_str = f"+{i}日"
+            rel_str = f"+{i}d"
             color = "cyan"
 
         tasks_list = day_tasks[target_date]
@@ -532,11 +529,21 @@ def cal():
         table.add_row(
             f"[{color}]{date_str}[/]",
             f"[{color}]{rel_str}[/]",
-            tasks_str
+            f"[{color}]{tasks_str}[/]",
         )
 
     console.print(table)
 
+
+@app.command("cal")
+def cal(d: int = 7):
+    """週間予定をカレンダー形式で表示する `cal --d 10` と指定して任意の期間を表示できる"""
+    show_cal(d)
+
+@app.command("cal30")
+def cal30():
+    """週間予定をカレンダー形式で表示する"""
+    show_cal(30)
 
 @app.command("info")
 def info():
