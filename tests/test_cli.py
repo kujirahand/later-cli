@@ -726,3 +726,31 @@ def test_sqlite_event_logging_and_restoration(invoke, taskfile):
     # Clean up DB after test
     if os.path.exists(db_path):
         os.remove(db_path)
+
+
+def test_datetime_format_customization(invoke, taskfile):
+    from storage import set_data_file
+
+    set_data_file(taskfile)
+
+    # Add a task
+    result_add = invoke("add", "2026-06-01 10:30", "フォーマットテストタスク")
+    assert result_add.exit_code == 0, result_add.output
+
+    # 1. Default format is m/d[weekday]H:i (e.g., 06/01Mon10:30 for English default)
+    result = invoke("list")
+    assert result.exit_code == 0
+    assert "06/01Mon10:30" in result.output
+
+    # 2. Japanese locale test (e.g., 06/01月10:30)
+    invoke("set", "language", "ja")
+    result_ja = invoke("list")
+    assert result_ja.exit_code == 0
+    assert "06/01月10:30" in result_ja.output
+
+    # 3. Custom format via tasks.json (e.g. YYYY/MM/DD)
+    invoke("set", "datetime_format", "%Y/%m/%d")
+    result_custom = invoke("list")
+    assert result_custom.exit_code == 0
+    assert "2026/06/01" in result_custom.output
+    assert "10:30" not in result_custom.output

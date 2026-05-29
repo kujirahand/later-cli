@@ -60,6 +60,7 @@ later-cli/
 ```json
 {
     "language": "en",
+    "datetime_format": "%m/%d %H:%M",
     "tasks": [
         {
             "date": "2026-05-30 08:00:00",
@@ -152,9 +153,10 @@ later-cli/
 - `language`: 表示言語を変更します（`en` または `ja` をサポート）。デフォルトは英語（`en`）です。この言語設定は `tasks.json` のメタデータとして保存されます。
 - `done`: 指定した番号のタスクの状態を「完了(done)」に設定します。
 - `todo`: 指定した番号のタスクの状態を「未完了(todo)」に設定します。
-- `set`: `tasks.json` のルートレベルにある任意のキーに値を設定します（例: `later set sync_enabled true`）。
-  - 安全のため、予約済みキーである `"tasks"` への設定は制限されます。
+- `set`: `tasks.json` のルートレベルにある任意のキーに値を設定します（例: `later set datetime_format "%Y/%m/%d %H:%M"`）。
+  - 安全のため、予約済みキーである `"tasks"` への設定 is 制限されます。
   - 値が `true`, `false`, 数値などの形式の場合、自動的に適切なデータ型にパースされて JSON に保存されます。
+  - 日付表示形式をカスタマイズするための `datetime_format` キーなどの設定変更に利用されます。
 - `sync`: 設定された `api_endpoint` に対し、最後に同期した日時（`api_updated_at`）以降のローカルイベントを送信し、APIから受信した最新のイベントをローカルタスクへ適用して同期します。
   - 同期には `api_key` が必須で、`X-API-KEY` / `Authorization` ヘッダーによる認証を行います。
   - 同期が正常に終了すると、送信されたローカルイベントは `events.db` の `events` テーブルから `events_logs` テーブルへアーカイブ（退避）され、同期日時 `api_updated_at` が更新されます。

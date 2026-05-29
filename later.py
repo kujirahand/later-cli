@@ -481,22 +481,22 @@ def calc_due_date(due: str) -> datetime:
 @app.command()
 def add(due: str, task: str):
     """
-      Add a task.
+    Add a task.
 
-      Examples:
-        later add 3d "レポート提出" ... add task due in 3 days (default time is 8:00 AM)
-        later add 10h "打ち合わせ" ... add task due in 10 hours
-        later add now "今すぐやるタスク" ... add task due now
-        later add "3/10 15:30" "特定の日のタスク" ... add task due on March 10 at 15:30 (this year or next year if date has passed)
-        later add 明日 "明日のタスク" ... task due tomorrow morning
-        later add 明日10時 "明日10時のタスク" ... task due tomorrow at 10:00
-        later add 明後日 "明後日のタスク" ... task due the morning of the day after tomorrow
-        later add 来週 "来週のタスク" ... task due next Monday morning
-        later add 今 "今すぐやるタスク" ... task due immediately
-        later add 20時 "今日の20時のタスク" ... task due today at 20:00
-        later add 来週月曜 "レポート提出" ... task due next Monday morning
-        later add 水曜日" "ゴミ出し" ... task due next Wednesday morning
-        later add 来月第二月曜 "月次報告" ... task due on the second Monday of next month
+    Examples:
+      later add 3d "レポート提出" ... add task due in 3 days (default time is 8:00 AM)
+      later add 10h "打ち合わせ" ... add task due in 10 hours
+      later add now "今すぐやるタスク" ... add task due now
+      later add "3/10 15:30" "特定の日のタスク" ... add task due on March 10 at 15:30 (this year or next year if date has passed)
+      later add 明日 "明日のタスク" ... task due tomorrow morning
+      later add 明日10時 "明日10時のタスク" ... task due tomorrow at 10:00
+      later add 明後日 "明後日のタスク" ... task due the morning of the day after tomorrow
+      later add 来週 "来週のタスク" ... task due next Monday morning
+      later add 今 "今すぐやるタスク" ... task due immediately
+      later add 20時 "今日の20時のタスク" ... task due today at 20:00
+      later add 来週月曜 "レポート提出" ... task due next Monday morning
+      later add 水曜日" "ゴミ出し" ... task due next Wednesday morning
+      later add 来月第二月曜 "月次報告" ... task due on the second Monday of next month
     """
     tasks = load_tasks()
     notify_at = calc_due_date(due)
@@ -625,12 +625,31 @@ def show_tasks(tasks: list[dict], title: str, target: LIST_TARGETS = "all"):
     table.add_column(get_msg("col_remaining"), style="cyan")
     table.add_column(get_msg("col_status"), justify="center")
 
+    raw_data = load_raw_data()
+    lang = raw_data.get("language", "en")
+    datetime_fmt = raw_data.get("datetime_format")
+
+    # Portable weekday names
+    WEEKDAYS_JA = ["月", "火", "水", "木", "金", "土", "日"]
+    WEEKDAYS_EN = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
     for original_idx, task in filtered_tasks:
         try:
             notify_at = datetime.strptime(task["date"], "%Y-%m-%d %H:%M:%S")
             is_overdue = task.get("status") != "done" and notify_at <= now
+
+            if datetime_fmt:
+                date_display = notify_at.strftime(datetime_fmt)
+            else:
+                # Default format with portable weekday: e.g., 03/01水03:33
+                w_idx = notify_at.weekday()
+                w_str = WEEKDAYS_JA[w_idx] if lang == "ja" else WEEKDAYS_EN[w_idx]
+                date_display = (
+                    f"{notify_at.strftime('%m/%d')}{w_str}{notify_at.strftime('%H:%M')}"
+                )
         except ValueError:
             is_overdue = False
+            date_display = task["date"]
 
         task_style = "red" if is_overdue else "bright_white"
         task_content = f"[{task_style}]{task['task']}[/]"
@@ -639,7 +658,7 @@ def show_tasks(tasks: list[dict], title: str, target: LIST_TARGETS = "all"):
         status_key = "status_done" if task.get("status") == "done" else "status_todo"
         status_str = get_msg(status_key)
         table.add_row(
-            f"{original_idx}", task_content, task["date"], countdown, status_str
+            f"{original_idx}", task_content, date_display, countdown, status_str
         )
     console.print(table)
 

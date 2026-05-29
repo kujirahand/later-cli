@@ -124,6 +124,29 @@ Examples:
   later.py --file /tmp/tasks.json add now "テスト" # 指定したファイルにタスクを追加
 ```
 
+## 設定のカスタマイズ
+
+`set` コマンドを使用すると、`tasks.json` 内の設定値を変更できます。
+
+```bash
+# APIエンドポイントやAPIキーの設定
+later set api_endpoint "https://example.com"
+later set api_key "laterapi::your::key"
+
+# 日付表示形式のカスタマイズ
+later set datetime_format "%Y/%m/%d %H:%M"
+```
+
+### 日付表示形式のカスタマイズ (datetime_format)
+
+タスク一覧 (`later list`) で表示される通知日時は、標準では年を省き、ポータブルな曜日を含んだ `m/d曜日H:i` 形式（日本語設定時：`03/01水03:33`、英語設定時：`03/01Mon03:33`）で表示されます。
+表示形式を変更したい場合は、`tasks.json` に `datetime_format` キーを設定することで自在にカスタマイズが可能です。
+
+Pythonの `strftime` フォーマット指定子を使用できます：
+- **`%Y/%m/%d %H:%M`**: `2026/06/01 10:30`
+- **`%d/%m %H:%M`**: `01/06 10:30`（欧州風）
+- **`%b %d, %Y %I:%M %p`**: `Jun 01, 2026 10:30 AM`（米国風）
+
 ## 開発者向け (just)
 
 本プロジェクトではタスクランナーとして [just](https://github.com/casey/just) を導入しています。開発時のテストやコード品質の管理（Lint/Format）に利用できます。インストール方法は [justのGitHubリポジトリ](https://github.com/casey/just#installation) をご参照ください。
