@@ -376,3 +376,115 @@ def test_clear_japanese(invoke, taskfile):
 
     # 英語に戻しておく (他テストへの影響を避けるため)
     invoke("language", "en")
+
+
+def test_show_with_targets(invoke, taskfile):
+    from datetime import datetime, timedelta
+    from storage import save_tasks, set_data_file
+
+    set_data_file(taskfile)
+
+    two_days_ago = (datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d %H:%M:%S")
+    one_day_later = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
+    five_days_later = (datetime.now() + timedelta(days=5)).strftime("%Y-%m-%d %H:%M:%S")
+    fifteen_days_later = (datetime.now() + timedelta(days=15)).strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
+
+    tasks = [
+        {"date": two_days_ago, "task": "期限切れ todo", "status": "todo"},
+        {"date": one_day_later, "task": "1日後 done", "status": "done"},
+        {"date": five_days_later, "task": "5日後 todo", "status": "todo"},
+        {"date": fifteen_days_later, "task": "15日後 todo", "status": "todo"},
+    ]
+    save_tasks(tasks)
+
+    # 1. target = all (デフォルト)
+    result = invoke("show", "--target", "all")
+    assert result.exit_code == 0
+    assert "期限切れ todo" in result.output
+    assert "1日後 done" in result.output
+    assert "5日後 todo" in result.output
+    assert "15日後 todo" in result.output
+
+    # 2. target = due
+    result = invoke("show", "--target", "due")
+    assert result.exit_code == 0
+    assert "期限切れ todo" in result.output
+    assert "1日後 done" not in result.output
+    assert "5日後 todo" not in result.output
+    assert "15日後 todo" not in result.output
+
+    # 3. target = week
+    result = invoke("show", "--target", "week")
+    assert result.exit_code == 0
+    assert "期限切れ todo" in result.output
+    assert "1日後 done" in result.output
+    assert "5日後 todo" in result.output
+    assert "15日後 todo" not in result.output
+
+    # 4. target = month
+    result = invoke("show", "--target", "month")
+    assert result.exit_code == 0
+    assert "期限切れ todo" in result.output
+    assert "1日後 done" in result.output
+    assert "5日後 todo" in result.output
+    assert "15日後 todo" in result.output
+
+    # 5. target = todo
+    result = invoke("show", "--target", "todo")
+    assert result.exit_code == 0
+    assert "期限切れ todo" in result.output
+    assert "1日後 done" not in result.output
+    assert "5日後 todo" in result.output
+    assert "15日後 todo" in result.output
+
+    # Parse table rows to extract displayed indices
+    indices = []
+    for line in result.output.splitlines():
+        if "│" in line:
+            parts = [p.strip() for p in line.split("│")]
+            if len(parts) >= 2 and parts[1].isdigit():
+                indices.append(parts[1])
+    assert indices == ["1", "3", "4"]
+
+    # 6. target = done
+    result = invoke("show", "--target", "done")
+    assert result.exit_code == 0
+    assert "期限切れ todo" not in result.output
+    assert "1日後 done" in result.output
+    assert "5日後 todo" not in result.output
+    assert "15日後 todo" not in result.output
+
+    indices = []
+    for line in result.output.splitlines():
+        if "│" in line:
+            parts = [p.strip() for p in line.split("│")]
+            if len(parts) >= 2 and parts[1].isdigit():
+                indices.append(parts[1])
+    assert indices == ["2"]
+
+
+def test_ls_todo_command(invoke, taskfile):
+    from storage import save_tasks, set_data_file
+
+    set_data_file(taskfile)
+
+    tasks = [
+        {"date": "2026-06-01 08:00:00", "task": "todoタスク", "status": "todo"},
+        {"date": "2026-06-02 08:00:00", "task": "doneタスク", "status": "done"},
+    ]
+    save_tasks(tasks)
+
+    result = invoke("ls-todo")
+    assert result.exit_code == 0
+    assert "todoタスク" in result.output
+    assert "doneタスク" not in result.output
+
+    indices = []
+    for line in result.output.splitlines():
+        if "│" in line:
+            parts = [p.strip() for p in line.split("│")]
+            if len(parts) >= 2 and parts[1].isdigit():
+                indices.append(parts[1])
+    assert indices == ["1"]

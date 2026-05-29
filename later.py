@@ -19,10 +19,21 @@ from storage import (
     get_language,
 )
 
+# Define the type for clear command targets
 CLEAR_TARGETS = Literal[
     "overdue",  # Tasks past their due date
     "all",  # All tasks
     "done",  # Completed tasks
+]
+
+# Define the type for list command targets
+LIST_TARGETS = Literal[
+    "all",  # Show all tasks
+    "due",  # Show only tasks that are due or overdue
+    "week",  # Show tasks due within the next 7 days
+    "month",  # Show tasks due within the next 30 days
+    "todo",  # Show only tasks that are not marked as done
+    "done",  # Show only tasks that are marked as done
 ]
 
 # Create Typer and Rich console instances
@@ -456,22 +467,22 @@ def calc_due_date(due: str) -> datetime:
 @app.command()
 def add(due: str, task: str):
     """
-        Add a task.
+      Add a task.
 
-        Examples:
-      later.py add 3d "レポート提出" ... add task due in 3 days (default time is 8:00 AM)
-      later.py add 10h "打ち合わせ" ... add task due in 10 hours
-      later.py add now "今すぐやるタスク" ... add task due now
-      later.py add "3/10 15:30" "特定の日のタスク" ... add task due on March 10 at 15:30 (this year or next year if date has passed)
-            later.py add 明日 "明日のタスク" ... task due tomorrow morning
-            later.py add 明日10時 "明日10時のタスク" ... task due tomorrow at 10:00
-            later.py add 明後日 "明後日のタスク" ... task due the morning of the day after tomorrow
-            later.py add 来週 "来週のタスク" ... task due next Monday morning
-            later.py add 今 "今すぐやるタスク" ... task due immediately
-            later.py add 20時 "今日の20時のタスク" ... task due today at 20:00
-            later.py add 来週月曜 "レポート提出" ... task due next Monday morning
-            later.py add 水曜日" "ゴミ出し" ... task due next Wednesday morning
-            later.py add 来月第二月曜 "月次報告" ... task due on the second Monday of next month
+      Examples:
+    later.py add 3d "レポート提出" ... add task due in 3 days (default time is 8:00 AM)
+    later.py add 10h "打ち合わせ" ... add task due in 10 hours
+    later.py add now "今すぐやるタスク" ... add task due now
+    later.py add "3/10 15:30" "特定の日のタスク" ... add task due on March 10 at 15:30 (this year or next year if date has passed)
+          later.py add 明日 "明日のタスク" ... task due tomorrow morning
+          later.py add 明日10時 "明日10時のタスク" ... task due tomorrow at 10:00
+          later.py add 明後日 "明後日のタスク" ... task due the morning of the day after tomorrow
+          later.py add 来週 "来週のタスク" ... task due next Monday morning
+          later.py add 今 "今すぐやるタスク" ... task due immediately
+          later.py add 20時 "今日の20時のタスク" ... task due today at 20:00
+          later.py add 来週月曜 "レポート提出" ... task due next Monday morning
+          later.py add 水曜日" "ゴミ出し" ... task due next Wednesday morning
+          later.py add 来月第二月曜 "月次報告" ... task due on the second Monday of next month
     """
     tasks = load_tasks()
     notify_at = calc_due_date(due)
@@ -551,45 +562,100 @@ def get_countdown_str(date_str: str) -> str:
         return get_msg("overdue_ago", "".join(parts))
 
 
-def show_tasks(tasks: list[dict], title: str):
+def show_tasks(tasks: list[dict], title: str, target: LIST_TARGETS = "all"):
     """Display the task list in a table."""
     if len(tasks) == 0:
         # Show message and return when there are no tasks
         console.print(get_msg("no_tasks"))
         return
+
+    now = datetime.now()
+    filtered_tasks = []
+
+    for idx, task in enumerate(tasks, start=1):
+        try:
+            notify_at = datetime.strptime(task["date"], "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            notify_at = None
+
+        keep = False
+        if target == "all":
+            keep = True
+        elif target == "due":
+            if notify_at and notify_at <= now:
+                keep = True
+        elif target == "week":
+            if notify_at and notify_at <= now + timedelta(days=7):
+                keep = True
+        elif target == "month":
+            if notify_at and notify_at <= now + timedelta(days=30):
+                keep = True
+        elif target == "todo":
+            if task.get("status") != "done":
+                keep = True
+        elif target == "done":
+            if task.get("status") == "done":
+                keep = True
+
+        if keep:
+            filtered_tasks.append((idx, task))
+
+    if len(filtered_tasks) == 0:
+        console.print(get_msg("no_tasks"))
+        return
+
     table = Table(title=title, show_lines=False, box=box.ROUNDED)
     table.add_column(get_msg("col_no"), justify="right")
-    table.add_column(get_msg("col_task"), style="red")
+    table.add_column(get_msg("col_task"))
     table.add_column(get_msg("col_due"), style="green")
     table.add_column(get_msg("col_remaining"), style="cyan")
     table.add_column(get_msg("col_status"), justify="center")
-    for idx, task in enumerate(tasks, start=1):
+
+    for original_idx, task in filtered_tasks:
+        try:
+            notify_at = datetime.strptime(task["date"], "%Y-%m-%d %H:%M:%S")
+            is_overdue = task.get("status") != "done" and notify_at <= now
+        except ValueError:
+            is_overdue = False
+
+        task_style = "red" if is_overdue else "bright_white"
+        task_content = f"[{task_style}]{task['task']}[/]"
+
         countdown = get_countdown_str(task["date"])
         status_key = "status_done" if task.get("status") == "done" else "status_todo"
         status_str = get_msg(status_key)
-        table.add_row(f"{idx}", task["task"], task["date"], countdown, status_str)
+        table.add_row(
+            f"{original_idx}", task_content, task["date"], countdown, status_str
+        )
     console.print(table)
 
 
 @app.command("list")
-def show_alias():
+def show_alias(target: LIST_TARGETS = "all"):
     """Show the task list."""
     tasks = load_tasks()
-    show_tasks(tasks, get_msg("list_title"))
+    show_tasks(tasks, get_msg("list_title"), target)
 
 
 @app.command("ls")
-def list_alias():
+def list_alias(target: LIST_TARGETS = "all"):
     """alias for `list` command"""
     tasks = load_tasks()
-    show_tasks(tasks, get_msg("list_title"))
+    show_tasks(tasks, get_msg("list_title"), target)
 
 
 @app.command()
-def show():
+def show(target: LIST_TARGETS = "all"):
     """alias for `list` command"""
     tasks = load_tasks()
-    show_tasks(tasks, get_msg("list_title"))
+    show_tasks(tasks, get_msg("list_title"), target)
+
+
+@app.command("ls-todo")
+def ls_todo():
+    """alias for `later list --target=todo` command"""
+    tasks = load_tasks()
+    show_tasks(tasks, get_msg("list_title"), target="todo")
 
 
 @app.command()
@@ -622,7 +688,9 @@ def clear(target: CLEAR_TARGETS = "overdue"):
         tasks_due = []
         for task in tasks:
             notify_at = datetime.strptime(task["date"], "%Y-%m-%d %H:%M:%S")
-            remove_date = notify_at - timedelta(days=1)  # Remove tasks overdue by at least one day
+            remove_date = notify_at - timedelta(
+                days=1
+            )  # Remove tasks overdue by at least one day
             if remove_date > now:
                 tasks_due.append(task)
         save_tasks(tasks_due)
@@ -648,13 +716,7 @@ def clear(target: CLEAR_TARGETS = "overdue"):
 def check():
     """Show tasks whose due time has arrived."""
     tasks = load_tasks()
-    now = datetime.now()
-    tasks_due = []
-    for task in tasks:
-        notify_at = datetime.strptime(task["date"], "%Y-%m-%d %H:%M:%S")
-        if notify_at <= now:
-            tasks_due.append(task)
-    show_tasks(tasks_due, get_msg("due_tasks_title"))
+    show_tasks(tasks, get_msg("due_tasks_title"), target="due")
 
 
 @app.command("c")
