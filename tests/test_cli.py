@@ -92,3 +92,16 @@ def test_add_with_nth_weekday(invoke, taskfile):
     assert len(tasks) == 1
     assert tasks[0]["task"] == "来月第二月曜のタスク"
     assert tasks[0]["date"].endswith("08:00:00")
+
+
+def test_cal_mode_shows_tasks_in_calendar(invoke, taskfile):
+    invoke("add", "now", "今日の予定")
+    invoke("add", "明日", "明日の予定")
+    invoke("add", "来週", "来週の予定")
+
+    result = invoke("cal")
+    assert result.exit_code == 0, result.output
+    assert "■ 週間カレンダー" in result.output
+    assert "今日の予定" in result.output
+    assert "明日の予定" in result.output
+    assert "来週の予定" not in result.output

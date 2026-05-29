@@ -68,6 +68,7 @@ Commands:
   del           Alias for delete (shorter command)
   clear         Remove overdue tasks
   check         Show due tasks
+  cal           Show weekly schedule in calendar format
   info          Show the data file path
   --file FILE   Use FILE as the task JSON file
   --help        Show this help message
@@ -85,6 +86,7 @@ Examples:
   later.py delete 1                     # 番号1のタスクを削除
   later.py clear                        # 期限切れタスクを削除
   later.py check                        # 期限切れタスクを表示
+  later.py cal                          # 週間予定をカレンダー形式で表示
   later.py info                         # データの保存場所を表示
   later.py --file /tmp/tasks.json add now "テスト" # 指定したファイルにタスクを追加
 ```

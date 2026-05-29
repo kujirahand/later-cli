@@ -337,6 +337,62 @@ def check_alias():
     """checkコマンドのエイリアス"""
     check()
 
+
+@app.command("cal")
+def cal():
+    """週間予定をカレンダー形式で表示する"""
+    tasks = load_tasks()
+    now = datetime.now()
+
+    # 日付ごとのタスクマッピング
+    from collections import defaultdict
+    day_tasks = defaultdict(list)
+    for task in tasks:
+        try:
+            t_date = datetime.strptime(task["date"], "%Y-%m-%d %H:%M:%S").date()
+            day_tasks[t_date].append(task["task"])
+        except ValueError:
+            continue
+
+    # 枠線とヘッダーを表示し、カラムを分離して構成
+    table = Table(
+        title="■ 週間カレンダー",
+        show_header=True,
+        show_lines=False,
+    )
+    table.add_column("日付", justify="center", style="bold")
+    table.add_column("何日後", justify="center")
+    table.add_column("タスク", style="cyan")
+
+    for i in range(7):
+        target_date = (now + timedelta(days=i)).date()
+        date_str = target_date.strftime("%m-%d")
+
+        if i == 0:
+            rel_str = "今日"
+            color = "bold magenta"
+        elif i == 1:
+            rel_str = "明日"
+            color = "bold green"
+        elif i == 2:
+            rel_str = "明後日"
+            color = "bold yellow"
+        else:
+            rel_str = f"+{i}日"
+            color = "cyan"
+
+        tasks_list = day_tasks[target_date]
+        tasks_str = ", ".join(tasks_list) if tasks_list else "-"
+
+        table.add_row(
+            f"[{color}]{date_str}[/]",
+            f"[{color}]{rel_str}[/]",
+            tasks_str
+        )
+
+    console.print(table)
+
+
 @app.command("info")
 def info():
     """情報を表示"""
