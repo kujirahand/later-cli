@@ -6,44 +6,42 @@ A CLI task management tool. CLIでタスクを管理するシンプルなプロ�
 
 ![ターミナルで使えるシンプルなタスク管理ツール「later」](https://raw.githubusercontent.com/kujirahand/later-cli/refs/heads/main/doc/preview.png)
 
-- [簡単な使い方はこちら](https://github.com/kujirahand/later-cli/tree/main/doc) をご覧ください。
+- [日本語の使い方はこちら](https://github.com/kujirahand/later-cli/tree/main/doc) をご覧ください。
 
-## インストール
+## Installation
 
-実行にはPython 3.10以降が必要です。
+Requires Python 3.10 or later. (実行にはPython 3.10以降が必要です。)
 
-### PyPIからインストール
+### Install from PyPI
 
-PyPIからインストール可能です。
+You can install `later-cli` using pip:
 
 ```sh
 pip install later-cli
 ```
 
-すると、`later` コマンドが利用可能になります。
+Then you can run the `later` command in your terminal.
 
-### GitHubリポジトリからインストール
+### Install from GitHub Repository
 
-パッケージマネージャーである [uv](https://github.com/astral-sh/uv) を使用してセットアップを行います。以下のコマンドを実行するだけで自動的に仮想環境（`.venv`）が構築され、依存関係の同期が完了します。
-
-以下はuvをインストールするためのコマンドです。
+パッケージマネージャーである [uv](https://github.com/astral-sh/uv) を使用してセットアップを行います。以下のコマンドを実行するだけで自動的に仮想環境（`.venv`）が構築され、依存関係の同期が完了します。以下はuvをインストールするためのコマンドです。
 
 ```sh
-# uvのインストール
+# Install uv
 pip install uv
 # OR
 # brew install uv
 # cargo install --git https://github.com/astral-sh/uv uv
 ```
 
-次いで、本プロジェクトのリポジトリをクローンして、依存関係をインストールします。
+And then, clone the repository and set up the environment:
 
 ```sh
-# リポジトリを取ってくる
+# Clone the repository
 git clone https://github.com/kujirahand/later-cli.git
 cd later-cli
 
-# 依存関係をインストールして同期
+# Install dependencies and set up the environment
 uv sync
 ```
 
@@ -70,7 +68,9 @@ cd /path/to/later-cli  # later-cliのパスに置き換える
 uv run later.py check
 ```
 
-## later の使い方
+## How to Use later-cli
+
+Please type `later --help` to see the available commands and options. 
 
 ```text
 Usage:
@@ -79,9 +79,9 @@ Usage:
 Commands:
   add           Add a new task. Example: later.py add "3d" "Submit report"
   a             Alias for add (shorter command)
-  show          Show all tasks
-  list          Alias for show
-  ls            Alias for show (shorter command)
+  list          Show all tasks
+  ls            Alias for list (shorter command)
+  show          Alias for list
   delete        Delete a task by number. Example: later.py delete 1
   del           Alias for delete (shorter command)
   clear         Remove overdue tasks
@@ -90,13 +90,12 @@ Commands:
   info          Show the data file path
   version       Show version information
   language      Set display language (en / ja)
-  lang          Alias for language
   --file FILE   Use FILE as the task JSON file
   --help        Show this help message
 
 Examples:
-  later.py add "3d" "レポート提出"        # 3日後のタスクを追加
-  later.py add "10h" "打ち合わせ"         # 10時間後のタスクを追加
+  later.py add "3d" "レポート提出"        # add task due in 3 days
+  later.py add "10h" "打ち合わせ"         # add task due in 10 hours
   later.py add "今日" "今日のタスク"         # 本日の午前8時のタスクを追加
   later.py add "明日" "明日のタスク"        # 明日の午前8時のタスクを追加
   later.py add "明日20時" "明日20時"       # 明日20時のタスクを追加

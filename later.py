@@ -129,10 +129,10 @@ def main(
     taskfile: Path | None = typer.Option(
         None,
         "--file",
-        help="タスクを保存する JSON ファイルを指定します。",
+        help="specify a custom task file (default: tasks.json in the current directory)",
     ),
 ):
-    """CLIでタスクを管理するプログラム"""
+    """CLI for managing tasks with due dates"""
     if taskfile is not None:
         set_data_file(taskfile)
     else:
@@ -150,7 +150,7 @@ def main(
 
 @app.command("version")
 def version_cmd():
-    """バージョン情報を表示する"""
+    """show version info"""
     version = get_version()
     console.print(f"later-cli v{version}")
 
@@ -408,18 +408,19 @@ def add(due: str, task: str):
     タスクを追加する
 
     指定例:
-      later.py add "3d" "レポート提出" ... 3日後の朝のタスクを追加
-      later.py add "10h" "打ち合わせ" ... 10時間後のタスク
-      later.py add "明日" "明日のタスク" ... 明日の朝のタスク
-      later.py add "明日10時" "明日10時のタスク" ... 明日の朝10時のタスク
-      later.py add "明後日" "明後日のタスク" ... 明後日の朝のタスク
-      later.py add "来週" "来週のタスク" ... 来週月曜日の朝のタスク
-      later.py add now "今すぐやるタスク" ... 今すぐのタスク
+      later.py add 3d "レポート提出" ... add task due in 3 days (default time is 8:00 AM)
+      later.py add 10h "打ち合わせ" ... add task due in 10 hours
+      later.py add now "今すぐやるタスク" ... add task due now
+      later.py add "3/10 15:30" "特定の日のタスク" ... add task due on March 10 at 15:30 (this year or next year if date has passed)
+      later.py add 明日 "明日のタスク" ... 明日の朝のタスク
+      later.py add 明日10時 "明日10時のタスク" ... 明日の朝10時のタスク
+      later.py add 明後日 "明後日のタスク" ... 明後日の朝のタスク
+      later.py add 来週 "来週のタスク" ... 来週月曜日の朝のタスク
       later.py add 今 "今すぐやるタスク" ... 今すぐ
-      later.py add "20時" "今日の20時のタスク" ... 今日の20時にタスクを追加
-      later.py add "来週月曜" "レポート提出" ... 来週月曜の朝のタスクを追加
-      later.py add "水曜日" "ゴミ出し" ... 次の水曜日の朝のタスクを追加
-      later.py add "来月第二月曜" "月次報告" ... 来月の第2月曜日の朝のタスクを追加
+      later.py add 20時 "今日の20時のタスク" ... 今日の20時にタスクを追加
+      later.py add 来週月曜 "レポート提出" ... 来週月曜の朝のタスクを追加
+      later.py add 水曜日" "ゴミ出し" ... 次の水曜日の朝のタスクを追加
+      later.py add 来月第二月曜 "月次報告" ... 来月の第2月曜日の朝のタスクを追加
     """
     tasks = load_tasks()
     notify_at = calc_due_date(due)
