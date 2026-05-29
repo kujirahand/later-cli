@@ -27,7 +27,7 @@ def load_raw_data() -> dict:
     """JSONファイルから生データを読み込み、辞書形式に統一して返す"""
     if not os.path.exists(DATA_FILE):
         return {"language": "en", "tasks": []}
-    
+
     try:
         with open(DATA_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -51,7 +51,7 @@ def save_raw_data(data: dict):
     """辞書データを JSON ファイルに書き込む"""
     if "tasks" in data:
         data["tasks"].sort(key=lambda x: x["date"])
-    
+
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4, ensure_ascii=False)
 

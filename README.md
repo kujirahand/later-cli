@@ -90,6 +90,8 @@ Commands:
   info          Show the data file path
   version       Show version information
   language      Set display language (en / ja)
+  done          Mark a task as done. Example: later.py done 1
+  todo          Mark a task as todo. Example: later.py todo 1
   --file FILE   Use FILE as the task JSON file
   --help        Show this help message
 
@@ -117,7 +119,8 @@ Examples:
   later.py info                         # データの保存場所を表示
   later.py version                      # バージョン情報を表示
   later.py language ja                  # 表示言語を日本語(ja)に設定
-  later.py lang en                      # 表示言語を英語(en)に設定
+  later.py done 1                       # 番号1のタスクを完了にマーク
+  later.py todo 1                       # 番号1のタスクを未完了にマーク
   later.py --file /tmp/tasks.json add now "テスト" # 指定したファイルにタスクを追加
 ```
 

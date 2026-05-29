@@ -23,8 +23,8 @@ def taskfile(tmp_path):
 
 @pytest.fixture
 def invoke(runner, taskfile):
-    def run(*args):
-        return runner.invoke(app, ["--file", str(taskfile), *args])
+    def run(*args, **kwargs):
+        return runner.invoke(app, ["--file", str(taskfile), *args], **kwargs)
 
     return run
 
@@ -212,3 +212,167 @@ def test_language_toggle(invoke, taskfile):
 
     result = invoke("show")
     assert "■ Saved Tasks" in result.output
+
+
+def test_done_and_todo_commands(invoke, taskfile):
+    # タスクを追加
+    invoke("add", "now", "タスク状態テスト")
+
+    # 追加直後のデフォルトは 'todo' であることを確認
+    data = json.loads(taskfile.read_text(encoding="utf-8"))
+    assert data["tasks"][0].get("status") == "todo"
+
+    # done に変更
+    result = invoke("done", "1")
+    assert result.exit_code == 0, result.output
+    assert "Marked task as done: タスク状態テスト" in result.output
+
+    # tasks.json で状態を確認
+    data = json.loads(taskfile.read_text(encoding="utf-8"))
+    assert data["tasks"][0].get("status") == "done"
+
+    # todo に戻す
+    result = invoke("todo", "1")
+    assert result.exit_code == 0, result.output
+    assert "Marked task as todo: タスク状態テスト" in result.output
+
+    data = json.loads(taskfile.read_text(encoding="utf-8"))
+    assert data["tasks"][0].get("status") == "todo"
+
+
+def test_list_displays_status_column(invoke, taskfile):
+    invoke("add", "now", "タスク1")
+    invoke("add", "now", "タスク2")
+    invoke("done", "2")
+
+    # 英語での出力を確認 (デフォルト)
+    result = invoke("show")
+    assert result.exit_code == 0, result.output
+    assert "Status" in result.output
+    assert "todo" in result.output
+    assert "done" in result.output
+
+    # 日本語での出力を確認
+    invoke("language", "ja")
+    result = invoke("show")
+    assert result.exit_code == 0, result.output
+    assert "状態" in result.output
+    assert "todo" in result.output
+    assert "完了" in result.output
+
+
+def test_clear_overdue_tasks(invoke, taskfile):
+    from datetime import datetime, timedelta
+    from storage import save_tasks, set_data_file
+
+    set_data_file(taskfile)
+    two_days_ago = (datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d %H:%M:%S")
+    three_days_later = (datetime.now() + timedelta(days=3)).strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
+
+    tasks = [
+        {"date": two_days_ago, "task": "過去のタスク", "status": "todo"},
+        {"date": three_days_later, "task": "未来のタスク", "status": "todo"},
+    ]
+    save_tasks(tasks)
+
+    result = invoke("clear", input="y\n")
+    assert result.exit_code == 0, result.output
+    assert "Deleted overdue tasks" in result.output
+
+    data = json.loads(taskfile.read_text(encoding="utf-8"))
+    assert len(data["tasks"]) == 1
+    assert data["tasks"][0]["task"] == "未来のタスク"
+
+
+def test_clear_done_tasks(invoke, taskfile):
+    from storage import save_tasks, set_data_file
+
+    set_data_file(taskfile)
+    tasks = [
+        {"date": "2026-06-01 08:00:00", "task": "未完了タスク", "status": "todo"},
+        {"date": "2026-06-02 08:00:00", "task": "完了タスク", "status": "done"},
+    ]
+    save_tasks(tasks)
+
+    result = invoke("clear", "--target", "done", input="y\n")
+    assert result.exit_code == 0, result.output
+    assert "Deleted overdue tasks" in result.output
+
+    data = json.loads(taskfile.read_text(encoding="utf-8"))
+    assert len(data["tasks"]) == 1
+    assert data["tasks"][0]["task"] == "未完了タスク"
+
+
+def test_clear_all_tasks(invoke, taskfile):
+    from storage import save_tasks, set_data_file
+
+    set_data_file(taskfile)
+    tasks = [
+        {"date": "2026-06-01 08:00:00", "task": "タスク1", "status": "todo"},
+        {"date": "2026-06-02 08:00:00", "task": "タスク2", "status": "done"},
+    ]
+    save_tasks(tasks)
+
+    result = invoke("clear", "--target", "all", input="y\n")
+    assert result.exit_code == 0, result.output
+
+    data = json.loads(taskfile.read_text(encoding="utf-8"))
+    assert data["tasks"] == []
+
+
+def test_clear_cancel(invoke, taskfile):
+    from storage import save_tasks, set_data_file
+
+    set_data_file(taskfile)
+    tasks = [
+        {"date": "2026-06-01 08:00:00", "task": "タスク1", "status": "todo"},
+        {"date": "2026-06-02 08:00:00", "task": "タスク2", "status": "done"},
+    ]
+    save_tasks(tasks)
+
+    # overdue でキャンセル
+    result = invoke("clear", "--target", "overdue", input="n\n")
+    assert result.exit_code == 0, result.output
+    assert "Cancelled." in result.output
+
+    # done でキャンセル
+    result = invoke("clear", "--target", "done", input="n\n")
+    assert result.exit_code == 0, result.output
+    assert "Cancelled." in result.output
+
+    # all でキャンセル
+    result = invoke("clear", "--target", "all", input="n\n")
+    assert result.exit_code == 0, result.output
+    assert "Cancelled." in result.output
+
+    # データが何も消えていないことを確認
+    data = json.loads(taskfile.read_text(encoding="utf-8"))
+    assert len(data["tasks"]) == 2
+
+
+def test_clear_japanese(invoke, taskfile):
+    from datetime import datetime, timedelta
+    from storage import save_tasks, set_data_file
+
+    set_data_file(taskfile)
+
+    # 日本語に変更
+    invoke("language", "ja")
+
+    two_days_ago = (datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d %H:%M:%S")
+    tasks = [{"date": two_days_ago, "task": "過去のタスク", "status": "done"}]
+    save_tasks(tasks)
+
+    # ja の overdue でクリア
+    result = invoke("clear", "--target", "overdue", input="y\n")
+    assert result.exit_code == 0, result.output
+    assert "期限が過ぎたタスクを削除しました" in result.output
+
+    # データが削除されたことを確認
+    data = json.loads(taskfile.read_text(encoding="utf-8"))
+    assert data["tasks"] == []
+
+    # 英語に戻しておく (他テストへの影響を避けるため)
+    invoke("language", "en")
