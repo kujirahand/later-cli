@@ -73,6 +73,53 @@ def calc_due_date(due: str) -> datetime:
             hour=8, minute=0, second=0, microsecond=0
         )
 
+    # 時刻表現のパース (例: "明日10時", "明後日15時30分", "10:30", "本日18時")
+    time_match = re.fullmatch(
+        r"^(?P<day_word>今日|本日|明日|明後日|来週)?(?:の)?(?:(?P<hour>\d+)時(?:(?P<minute>\d+)分)?|(?P<hour_colon>\d+):(?P<minute_colon>\d+))$",
+        normalized,
+    )
+    if time_match:
+        day_word = time_match.group("day_word")
+
+        # 時・分の取得
+        if time_match.group("hour") is not None:
+            h = int(time_match.group("hour"))
+            m = (
+                int(time_match.group("minute"))
+                if time_match.group("minute") is not None
+                else 0
+            )
+        else:
+            h = int(time_match.group("hour_colon"))
+            m = int(time_match.group("minute_colon"))
+
+        if not (0 <= h < 24) or not (0 <= m < 60):
+            raise typer.BadParameter(
+                "時刻は正しい範囲 (0時〜23時, 0分〜59分) で指定してください。"
+            )
+
+        # 日付のベースを決定
+        if day_word == "明日":
+            days_offset = 1
+        elif day_word == "明後日":
+            days_offset = 2
+        elif day_word == "来週":
+            days_offset = 7
+        elif day_word in ("今日", "本日"):
+            days_offset = 0
+        else:
+            # 日付ワードが無い場合 (例: "10時", "10:30")
+            # すでにその時間を過ぎている場合は「明日」にする
+            temp_date = now.replace(hour=h, minute=m, second=0, microsecond=0)
+            if temp_date <= now:
+                days_offset = 1
+            else:
+                days_offset = 0
+
+        return (now + timedelta(days=days_offset)).replace(
+            hour=h, minute=m, second=0, microsecond=0
+        )
+
     # 曜日指定のパース (例: "来週月曜", "今週の水曜日", "木曜日")
     weekday_match = re.fullmatch(
         r"^(今週|来週|再来週)?(?:の)?(月|火|水|木|金|土|日)(曜|曜日)?$", normalized
@@ -180,10 +227,12 @@ def add(due: str, task: str):
       later.py add "3d" "レポート提出" ... 3日後の朝のタスクを追加
       later.py add "10h" "打ち合わせ" ... 10時間後のタスク
       later.py add "明日" "明日のタスク" ... 明日の朝のタスク
+      later.py add "明日10時" "明日10時のタスク" ... 明日の朝10時のタスク
       later.py add "明後日" "明後日のタスク" ... 明後日の朝のタスク
       later.py add "来週" "来週のタスク" ... 来週月曜日の朝のタスク
       later.py add now "今すぐやるタスク" ... 今すぐのタスク
       later.py add 今 "今すぐやるタスク" ... 今すぐ
+      later.py add "20時" "今日の20時のタスク" ... 今日の20時にタスクを追加
       later.py add "来週月曜" "レポート提出" ... 来週月曜の朝のタスクを追加
       later.py add "水曜日" "ゴミ出し" ... 次の水曜日の朝のタスクを追加
       later.py add "来月第二月曜" "月次報告" ... 来月の第2月曜日の朝のタスクを追加
@@ -191,10 +240,19 @@ def add(due: str, task: str):
     tasks = load_tasks()
     notify_at = calc_due_date(due)
     notify_at_s = notify_at.strftime("%Y-%m-%d %H:%M:%S")
-    # 既存の date キーは維持しつつ、時刻付き情報を notify_at に保存
     tasks.append({"date": notify_at_s, "task": task})
     save_tasks(tasks)
-    print(f"タスクを追加しました: {task} (通知日時: {notify_at_s})")
+
+    # 追加したタスクのソート後の位置を特定する
+    sorted_tasks = load_tasks()
+    added_idx = len(sorted_tasks)
+    for idx, t in enumerate(sorted_tasks, start=1):
+        if t["date"] == notify_at_s and t["task"] == task:
+            added_idx = idx
+            break
+
+    print(f"{added_idx}番目にタスクを追加しました: {task} (通知日時: {notify_at_s})")
+    show_tasks(sorted_tasks, "■ 保存したタスク一覧")
 
 
 @app.command("a")

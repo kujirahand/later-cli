@@ -105,3 +105,14 @@ def test_cal_mode_shows_tasks_in_calendar(invoke, taskfile):
     assert "今日の予定" in result.output
     assert "明日の予定" in result.output
     assert "来週の予定" not in result.output
+
+
+def test_add_with_specific_time(invoke, taskfile):
+    result = invoke("add", "明日10時", "明日の予定タスク")
+    assert result.exit_code == 0, result.output
+    assert taskfile.exists()
+
+    tasks = json.loads(taskfile.read_text(encoding="utf-8"))
+    assert len(tasks) == 1
+    assert tasks[0]["task"] == "明日の予定タスク"
+    assert tasks[0]["date"].endswith("10:00:00")
