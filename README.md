@@ -2,7 +2,7 @@
 
 [![PyPI version](https://img.shields.io/pypi/v/later-cli.svg)](https://pypi.org/project/later-cli/)
 
-CLIでタスクを管理するシンプルなプログラムです。
+A CLI task management tool. CLIでタスクを管理するシンプルなプログラムです。
 
 ![ターミナルで使えるシンプルなタスク管理ツール「later」](https://github.com/kujirahand/later-cli/blob/main/doc/preview.png)
 
