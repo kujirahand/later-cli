@@ -586,3 +586,37 @@ def test_guid_allocation(invoke, taskfile):
     assert "guid" in t2
     assert len(t2["guid"]) == 36
     assert t2["guid"] != guid1
+
+
+def test_set_config_command(invoke, taskfile):
+    from storage import set_data_file
+    import json
+
+    set_data_file(taskfile)
+
+    # 1. 文字列キーの設定 (language)
+    result = invoke("set", "language", "ja")
+    assert result.exit_code == 0
+    assert "language" in result.output
+
+    data = json.loads(taskfile.read_text(encoding="utf-8"))
+    assert data["language"] == "ja"
+
+    # 2. 真偽値キーの設定 (sync_enabled -> true)
+    result = invoke("set", "sync_enabled", "true")
+    assert result.exit_code == 0
+
+    data = json.loads(taskfile.read_text(encoding="utf-8"))
+    assert data["sync_enabled"] is True
+
+    # 3. 数値キーの設定 (port -> 8080)
+    result = invoke("set", "port", "8080")
+    assert result.exit_code == 0
+
+    data = json.loads(taskfile.read_text(encoding="utf-8"))
+    assert data["port"] == 8080
+
+    # 4. tasks キーへの設定拒否の検証
+    result = invoke("set", "tasks", "[]")
+    assert result.exit_code != 0
+    assert "reserved" in result.output or "Cannot set" in result.output

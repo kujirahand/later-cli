@@ -3,6 +3,7 @@
 
 from datetime import datetime, timedelta
 import importlib.metadata
+import json
 from pathlib import Path
 import re
 import typer
@@ -17,6 +18,8 @@ from storage import (
     reset_data_file,
     set_data_file,
     get_language,
+    load_raw_data,
+    save_raw_data,
 )
 
 # Define the type for clear command targets
@@ -83,6 +86,7 @@ MESSAGES = {
         "marked_done": "Marked task as done: {}",
         "marked_todo": "Marked task as todo: {}",
         "renewed_task": "Renewed task '{}': new due date is {}",
+        "set_success": "Set key '{}' to {}.",
     },
     "ja": {
         "added_title": "[bold yellow]新しいタスクを追加しました！[/]",
@@ -126,6 +130,7 @@ MESSAGES = {
         "marked_done": "タスクを完了にしました: {}",
         "marked_todo": "タスクを未完了にしました: {}",
         "renewed_task": "タスクの期限を更新しました '{}': 新しい期限は {}",
+        "set_success": "キー '{}' の値を {} に設定しました。",
     },
 }
 
@@ -895,6 +900,29 @@ def renew(number: int, offset: str):
 
     console.print(get_msg("renewed_task", task["task"], task["date"]))
     show()
+
+
+@app.command("set")
+def set_config(key: str, value: str):
+    """
+    Set a configuration key to a specified value in tasks.json.
+    """
+    if key == "tasks":
+        raise typer.BadParameter("Cannot set reserved key 'tasks'.")
+
+    data = load_raw_data()
+
+    # Try to parse the value as JSON (e.g. true, false, numbers)
+    try:
+        parsed_value = json.loads(value)
+    except Exception:
+        # Fallback to string if parsing fails
+        parsed_value = value
+
+    data[key] = parsed_value
+    save_raw_data(data)
+
+    console.print(get_msg("set_success", key, str(parsed_value)))
 
 
 if __name__ == "__main__":
