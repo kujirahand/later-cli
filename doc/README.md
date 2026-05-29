@@ -28,11 +28,15 @@ later a 3d "Submit report"       # Adds a task for 3 days later at 8:00 AM
 later a 10h "Meeting"            # Adds a task for 10 hours later
 
 # Natural language format
-later a "tomorrow" "Task contents"
-later a "day after tomorrow" "Task contents"
-later a "next Wednesday" "Task contents"
-later a "next month first Monday" "Task contents"
-later a "today 12:00" "Task contents"
+later a "today" "Today's task"               # Adds a task for today at 8:00 AM
+later a "tomorrow" "Tomorrow's task"         # Adds a task for tomorrow at 8:00 AM
+later a "tomorrow 20:00" "Tomorrow 20:00"   # Adds a task for tomorrow at 8:00 PM
+later a "day after tomorrow" "Task"          # Adds a task for the day after tomorrow at 8:00 AM
+later a "next week" "Next week's task"       # Adds a task for next Monday at 8:00 AM
+later a "next Monday" "Submit report"        # Adds a task for next Monday at 8:00 AM
+later a "Wednesday" "Take out trash"         # Adds a task for next Wednesday at 8:00 AM
+later a "next month second Monday" "Monthly report" # Adds a task for second Monday next month at 8:00 AM
+later a "tomorrow 10:00" "Submit report"     # Adds a task for tomorrow at 10:00 AM
 
 # Specific date/time format
 later a "5/25" "Task contents"             # May 25th at 8:00 AM

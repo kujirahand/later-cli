@@ -158,6 +158,136 @@ def test_add_with_today(invoke, taskfile):
     assert tasks[0]["date"].endswith("08:00:00")
 
 
+def test_add_with_english_keywords(invoke, taskfile):
+    from datetime import datetime, timedelta
+
+    # today
+    result = invoke("add", "today", "Today task")
+    assert result.exit_code == 0, result.output
+    # tomorrow
+    result = invoke("add", "tomorrow", "Tomorrow task")
+    assert result.exit_code == 0, result.output
+    # tomorrow 20:00
+    result = invoke("add", "tomorrow 20:00", "Tomorrow 20:00 task")
+    assert result.exit_code == 0, result.output
+    # day after tomorrow
+    result = invoke("add", "day after tomorrow", "Day after tomorrow task")
+    assert result.exit_code == 0, result.output
+    # next week
+    result = invoke("add", "next week", "Next week task")
+    assert result.exit_code == 0, result.output
+    # next Monday
+    result = invoke("add", "next Monday", "Next Monday task")
+    assert result.exit_code == 0, result.output
+    # Wednesday
+    result = invoke("add", "Wednesday", "Wednesday task")
+    assert result.exit_code == 0, result.output
+    # next month second Monday
+    result = invoke("add", "next month second Monday", "Next month second Monday task")
+    assert result.exit_code == 0, result.output
+    # tomorrow 10:00
+    result = invoke("add", "tomorrow 10:00", "Tomorrow 10:00 task")
+    assert result.exit_code == 0, result.output
+    # Dec 3 15:30
+    result = invoke("add", "Dec 3 15:30", "Monthly report")
+    assert result.exit_code == 0, result.output
+
+    data = json.loads(taskfile.read_text(encoding="utf-8"))
+    tasks = {t["task"]: t["date"] for t in data["tasks"]}
+
+    now = datetime.now()
+
+    # Assert today at 8:00
+    expected_today = now.replace(hour=8, minute=0, second=0, microsecond=0).strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
+    assert tasks["Today task"] == expected_today
+
+    # Assert tomorrow at 8:00
+    expected_tomorrow = (
+        (now + timedelta(days=1))
+        .replace(hour=8, minute=0, second=0, microsecond=0)
+        .strftime("%Y-%m-%d %H:%M:%S")
+    )
+    assert tasks["Tomorrow task"] == expected_tomorrow
+
+    # Assert tomorrow at 20:00
+    expected_tomorrow_20 = (
+        (now + timedelta(days=1))
+        .replace(hour=20, minute=0, second=0, microsecond=0)
+        .strftime("%Y-%m-%d %H:%M:%S")
+    )
+    assert tasks["Tomorrow 20:00 task"] == expected_tomorrow_20
+
+    # Assert day after tomorrow at 8:00
+    expected_dat = (
+        (now + timedelta(days=2))
+        .replace(hour=8, minute=0, second=0, microsecond=0)
+        .strftime("%Y-%m-%d %H:%M:%S")
+    )
+    assert tasks["Day after tomorrow task"] == expected_dat
+
+    # Assert next week (next Monday)
+    days_to_monday = 7 - now.weekday()
+    expected_next_week = (
+        (now + timedelta(days=days_to_monday))
+        .replace(hour=8, minute=0, second=0, microsecond=0)
+        .strftime("%Y-%m-%d %H:%M:%S")
+    )
+    assert tasks["Next week task"] == expected_next_week
+
+    # Assert next Monday
+    expected_next_monday = (
+        (now + timedelta(days=days_to_monday))
+        .replace(hour=8, minute=0, second=0, microsecond=0)
+        .strftime("%Y-%m-%d %H:%M:%S")
+    )
+    assert tasks["Next Monday task"] == expected_next_monday
+
+    # Assert Wednesday (nearest future Wednesday)
+    days_ahead = 2 - now.weekday()
+    if days_ahead <= 0:
+        days_ahead += 7
+    expected_wednesday = (
+        (now + timedelta(days=days_ahead))
+        .replace(hour=8, minute=0, second=0, microsecond=0)
+        .strftime("%Y-%m-%d %H:%M:%S")
+    )
+    assert tasks["Wednesday task"] == expected_wednesday
+
+    # Assert next month second Monday
+    def get_target_year_month(year, month, shift):
+        m = month - 1 + shift
+        return year + (m // 12), (m % 12) + 1
+
+    def calculate_nth_weekday(y, m_val, n, w):
+        first_day_w = datetime(y, m_val, 1).weekday()
+        first_target_d = 1 + (w - first_day_w) % 7
+        target_d = first_target_d + (n - 1) * 7
+        return datetime(y, m_val, target_d, 8, 0, 0)
+
+    t_year, t_month = get_target_year_month(now.year, now.month, 1)
+    expected_second_monday = calculate_nth_weekday(t_year, t_month, 2, 0).strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
+    assert tasks["Next month second Monday task"] == expected_second_monday
+
+    # Assert tomorrow 10:00
+    expected_tomorrow_10 = (
+        (now + timedelta(days=1))
+        .replace(hour=10, minute=0, second=0, microsecond=0)
+        .strftime("%Y-%m-%d %H:%M:%S")
+    )
+    assert tasks["Tomorrow 10:00 task"] == expected_tomorrow_10
+
+    # Assert Dec 3 15:30
+    target_year = now.year
+    expected_dec3 = datetime(target_year, 12, 3, 15, 30, 0)
+    if expected_dec3 < now:
+        expected_dec3 = datetime(target_year + 1, 12, 3, 15, 30, 0)
+    assert tasks["Monthly report"] == expected_dec3.strftime("%Y-%m-%d %H:%M:%S")
+
+
 def test_version_command(invoke):
     result = invoke("version")
     assert result.exit_code == 0, result.output

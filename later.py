@@ -225,6 +225,49 @@ WEEKDAY_MAP = {
     "日曜日": 6,
 }
 
+ENGLISH_WEEKDAY_MAP = {
+    "monday": 0,
+    "tuesday": 1,
+    "wednesday": 2,
+    "thursday": 3,
+    "friday": 4,
+    "saturday": 5,
+    "sunday": 6,
+    "mon": 0,
+    "tue": 1,
+    "wed": 2,
+    "thu": 3,
+    "fri": 4,
+    "sat": 5,
+    "sun": 6,
+}
+
+ENGLISH_MONTH_MAP = {
+    "january": 1,
+    "jan": 1,
+    "february": 2,
+    "feb": 2,
+    "march": 3,
+    "mar": 3,
+    "april": 4,
+    "apr": 4,
+    "may": 5,
+    "june": 6,
+    "jun": 6,
+    "july": 7,
+    "jul": 7,
+    "august": 8,
+    "aug": 8,
+    "september": 9,
+    "sep": 9,
+    "october": 10,
+    "oct": 10,
+    "november": 11,
+    "nov": 11,
+    "december": 12,
+    "dec": 12,
+}
+
 N_MAP = {
     "第一": 1,
     "第二": 2,
@@ -243,6 +286,24 @@ N_MAP = {
     "5": 5,
 }
 
+ENGLISH_N_MAP = {
+    "first": 1,
+    "second": 2,
+    "third": 3,
+    "fourth": 4,
+    "fifth": 5,
+    "1st": 1,
+    "2nd": 2,
+    "3rd": 3,
+    "4th": 4,
+    "5th": 5,
+    "1": 1,
+    "2": 2,
+    "3": 3,
+    "4": 4,
+    "5": 5,
+}
+
 
 def get_target_year_month(year: int, month: int, shift: int) -> tuple[int, int]:
     """Return the new year/month after applying a month shift."""
@@ -254,15 +315,16 @@ def calc_due_date(due: str) -> datetime:
     """Parse a due expression and return the notification datetime."""
     now = datetime.now()
     normalized = due.strip().lower()
+    normalized = " ".join(normalized.split())
     if normalized == "now" or normalized == "すぐ" or normalized == "今":
         return now
-    if normalized == "今日" or normalized == "本日":
+    if normalized == "今日" or normalized == "本日" or normalized == "today":
         return now.replace(hour=8, minute=0, second=0, microsecond=0)
     if normalized == "明日" or normalized == "tomorrow":
         return (now + timedelta(days=1)).replace(
             hour=8, minute=0, second=0, microsecond=0
         )
-    if normalized == "明後日":
+    if normalized == "明後日" or normalized == "day after tomorrow":
         return (now + timedelta(days=2)).replace(
             hour=8, minute=0, second=0, microsecond=0
         )
@@ -270,6 +332,233 @@ def calc_due_date(due: str) -> datetime:
         return (now + timedelta(days=7)).replace(
             hour=8, minute=0, second=0, microsecond=0
         )
+    if normalized == "next week":
+        current_weekday = now.weekday()
+        days_to_monday = 7 - current_weekday
+        return (now + timedelta(days=days_to_monday)).replace(
+            hour=8, minute=0, second=0, microsecond=0
+        )
+
+    # Parse English relative days with optional time (e.g. "tomorrow 20:00")
+    day_word_match = re.fullmatch(
+        r"^(today|tomorrow|day after tomorrow|next week)\s+(?P<hour>\d{1,2}):(?P<minute>\d{2})(?::(?P<second>\d{2}))?$",
+        normalized,
+    )
+    if day_word_match:
+        day_word = day_word_match.group(1)
+        h = int(day_word_match.group("hour"))
+        m = int(day_word_match.group("minute"))
+        s = (
+            int(day_word_match.group("second"))
+            if day_word_match.group("second") is not None
+            else 0
+        )
+
+        if not (0 <= h < 24) or not (0 <= m < 60) or not (0 <= s < 60):
+            raise typer.BadParameter(get_msg("err_invalid_time"))
+
+        if day_word == "today":
+            target_date = now.replace(hour=h, minute=m, second=s, microsecond=0)
+        elif day_word == "tomorrow":
+            target_date = (now + timedelta(days=1)).replace(
+                hour=h, minute=m, second=s, microsecond=0
+            )
+        elif day_word == "day after tomorrow":
+            target_date = (now + timedelta(days=2)).replace(
+                hour=h, minute=m, second=s, microsecond=0
+            )
+        elif day_word == "next week":
+            current_weekday = now.weekday()
+            days_to_monday = 7 - current_weekday
+            target_date = (now + timedelta(days=days_to_monday)).replace(
+                hour=h, minute=m, second=s, microsecond=0
+            )
+
+        return target_date
+
+    # Parse English specific dates (e.g. "Dec 3", "December 3 15:30", "3 Dec 2026")
+    english_months = "(?:january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)"
+    eng_date_match1 = re.fullmatch(
+        rf"^(?P<month>{english_months})\s+(?P<day>\d{{1,2}})(?:,?\s+(?P<year>\d{{4}}))?(?:\s+(?P<hour>\d{{1,2}}):(?P<minute>\d{{2}})(?::(?P<second>\d{{2}}))?)?$",
+        normalized,
+    )
+    eng_date_match2 = re.fullmatch(
+        rf"^(?P<day>\d{{1,2}})\s+(?P<month>{english_months})(?:\s+(?P<year>\d{{4}}))?(?:\s+(?P<hour>\d{{1,2}}):(?P<minute>\d{{2}})(?::(?P<second>\d{{2}}))?)?$",
+        normalized,
+    )
+
+    date_match_found = None
+    if eng_date_match1:
+        date_match_found = eng_date_match1
+    elif eng_date_match2:
+        date_match_found = eng_date_match2
+
+    if date_match_found:
+        month_str = date_match_found.group("month")
+        day_str = date_match_found.group("day")
+        year_str = date_match_found.group("year")
+        hour_str = date_match_found.group("hour")
+        minute_str = date_match_found.group("minute")
+        second_str = date_match_found.group("second")
+
+        m = ENGLISH_MONTH_MAP[month_str]
+        d = int(day_str)
+
+        # Parse time (default: 08:00)
+        h = 8
+        minute_val = 0
+        second_val = 0
+
+        if hour_str is not None:
+            h = int(hour_str)
+            minute_val = int(minute_str)
+            second_val = int(second_str) if second_str is not None else 0
+
+        if (
+            not (1 <= m <= 12)
+            or not (1 <= d <= 31)
+            or not (0 <= h < 24)
+            or not (0 <= minute_val < 60)
+            or not (0 <= second_val < 60)
+        ):
+            raise typer.BadParameter(get_msg("err_date_range"))
+
+        if year_str is not None:
+            t_year = int(year_str)
+            try:
+                target_date = datetime(t_year, m, d, h, minute_val, second_val)
+            except ValueError:
+                raise typer.BadParameter(
+                    get_msg("err_date_not_exist", f"{t_year}-{m:02d}-{d:02d}")
+                )
+        else:
+            t_year = now.year
+            try:
+                target_date = datetime(t_year, m, d, h, minute_val, second_val)
+            except ValueError:
+                raise typer.BadParameter(
+                    get_msg("err_date_not_exist", f"{m:02d}-{d:02d}")
+                )
+
+            # Move to next year if already passed
+            if target_date.date() < now.date():
+                try:
+                    target_date = datetime(t_year + 1, m, d, h, minute_val, second_val)
+                except ValueError:
+                    raise typer.BadParameter(
+                        get_msg("err_date_not_exist", f"{m:02d}-{d:02d}")
+                    )
+
+        return target_date
+
+    # Parse English Nth-weekday expressions (e.g. "next month second Monday", "first Tuesday")
+    english_nths = "(?:first|second|third|fourth|fifth|1st|2nd|3rd|4th|5th|[1-5])"
+    english_weekday_names = "(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tue|wed|thu|fri|sat|sun)"
+    nth_match = re.fullmatch(
+        rf"^(?:(this\s+month|next\s+month|month\s+after\s+next)\s+)?({english_nths})\s+({english_weekday_names})(?:\s+(?P<hour>\d{1, 2}):(?P<minute>\d{2})(?::(?P<second>\d{2}))?)?$",
+        normalized,
+    )
+    if nth_match:
+        prefix = nth_match.group(1)
+        nth_str = nth_match.group(2)
+        weekday_str = nth_match.group(3)
+        hour_str = nth_match.group("hour")
+        minute_str = nth_match.group("minute")
+        second_str = nth_match.group("second")
+
+        nth = ENGLISH_N_MAP[nth_str]
+        target_weekday = ENGLISH_WEEKDAY_MAP[weekday_str]
+
+        if hour_str is not None:
+            h = int(hour_str)
+            m = int(minute_str)
+            s = int(second_str) if second_str is not None else 0
+        else:
+            h = 8
+            m = 0
+            s = 0
+
+        if not (0 <= h < 24) or not (0 <= m < 60) or not (0 <= s < 60):
+            raise typer.BadParameter(get_msg("err_invalid_time"))
+
+        shift = 0
+        if prefix == "next month":
+            shift = 1
+        elif prefix == "month after next":
+            shift = 2
+
+        def calculate_nth_weekday(y: int, m_val: int, n: int, w: int) -> datetime:
+            first_day_w = datetime(y, m_val, 1).weekday()
+            first_target_d = 1 + (w - first_day_w) % 7
+            target_d = first_target_d + (n - 1) * 7
+            return datetime(y, m_val, target_d, h, m, s)
+
+        t_year, t_month = get_target_year_month(now.year, now.month, shift)
+
+        try:
+            target_date = calculate_nth_weekday(t_year, t_month, nth, target_weekday)
+
+            if target_date.date() < now.date() and (
+                prefix == "this month" or not prefix
+            ):
+                t_year, t_month = get_target_year_month(now.year, now.month, 1)
+                target_date = calculate_nth_weekday(
+                    t_year, t_month, nth, target_weekday
+                )
+
+            return target_date
+        except ValueError:
+            raise typer.BadParameter(
+                get_msg("err_invalid_nth_weekday", nth, weekday_str)
+            )
+
+    # Parse English weekday expressions (e.g. "next Monday", "Wednesday 15:30")
+    weekday_match = re.fullmatch(
+        rf"^(?:(this\s+week|next\s+week|week\s+after\s+next|this|next)\s+)?({english_weekday_names})(?:\s+(?P<hour>\d{1, 2}):(?P<minute>\d{2})(?::(?P<second>\d{2}))?)?$",
+        normalized,
+    )
+    if weekday_match:
+        prefix = weekday_match.group(1)
+        weekday_str = weekday_match.group(2)
+        hour_str = weekday_match.group("hour")
+        minute_str = weekday_match.group("minute")
+        second_str = weekday_match.group("second")
+
+        target_weekday = ENGLISH_WEEKDAY_MAP[weekday_str]
+        current_weekday = now.weekday()
+
+        if hour_str is not None:
+            h = int(hour_str)
+            m = int(minute_str)
+            s = int(second_str) if second_str is not None else 0
+        else:
+            h = 8
+            m = 0
+            s = 0
+
+        if not (0 <= h < 24) or not (0 <= m < 60) or not (0 <= s < 60):
+            raise typer.BadParameter(get_msg("err_invalid_time"))
+
+        if prefix in ("next", "next week", "nextweek"):
+            days_to_monday = 7 - current_weekday
+            next_monday = now + timedelta(days=days_to_monday)
+            target_date = next_monday + timedelta(days=target_weekday)
+        elif prefix == "week after next":
+            days_to_monday = 7 - current_weekday
+            two_weeks_monday = now + timedelta(days=days_to_monday + 7)
+            target_date = two_weeks_monday + timedelta(days=target_weekday)
+        elif prefix in ("this", "this week", "thisweek"):
+            this_monday = now - timedelta(days=current_weekday)
+            target_date = this_monday + timedelta(days=target_weekday)
+            if target_date.date() < now.date():
+                target_date += timedelta(days=7)
+        else:
+            days_ahead = target_weekday - current_weekday
+            if days_ahead <= 0:
+                days_ahead += 7
+            target_date = now + timedelta(days=days_ahead)
+
+        return target_date.replace(hour=h, minute=m, second=s, microsecond=0)
 
     # Parse time expressions (e.g. "明日10時", "明後日15時30分", "10:30", "本日18時")
     time_match = re.fullmatch(
