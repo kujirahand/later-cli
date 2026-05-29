@@ -4,9 +4,9 @@
 
 A CLI task management tool. CLIでタスクを管理するシンプルなプログラムです。
 
-![ターミナルで使えるシンプルなタスク管理ツール「later」](https://github.com/kujirahand/later-cli/blob/main/doc/preview.png)
+![ターミナルで使えるシンプルなタスク管理ツール「later」](https://raw.githubusercontent.com/kujirahand/later-cli/refs/heads/main/doc/preview.png)
 
-- [簡単な使い方はこちら](./doc/README.md) をご覧ください。
+- [簡単な使い方はこちら](https://github.com/kujirahand/later-cli/tree/main/doc) をご覧ください。
 
 ## インストール
 
