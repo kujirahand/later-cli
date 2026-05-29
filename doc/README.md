@@ -2,7 +2,7 @@
 
 later-cliは、ターミナルで簡単にタスクを管理できるシンプルなCLIツールです。基本的な使い方を説明します。
 
-インストールは、[こちら](https://github.com/kujirahand/later-cli/README.md)を参照してください。
+インストールは、[こちら](https://github.com/kujirahand/later-cli/)を参照してください。
 
 ## 1. タスクの追加
 
