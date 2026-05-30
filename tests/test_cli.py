@@ -896,3 +896,113 @@ def test_datetime_format_customization(invoke, taskfile):
     assert result_custom.exit_code == 0
     assert "2026/06/01" in result_custom.output
     assert "10:30" not in result_custom.output
+
+
+def test_datetime_in_format_customization(invoke, taskfile):
+    from storage import set_data_file
+
+    set_data_file(taskfile)
+
+    # 1. Set custom input format
+    invoke("set", "datetime_in_format", "%Y.%m.%d %H:%M")
+
+    # 2. Add task using this custom format
+    result = invoke("add", "2026.07.15 14:45", "カスタム入力タスク")
+    assert result.exit_code == 0, result.output
+
+    data = json.loads(taskfile.read_text(encoding="utf-8"))
+    tasks = data["tasks"]
+    assert len(tasks) == 1
+    assert tasks[0]["task"] == "カスタム入力タスク"
+    assert tasks[0]["date"] == "2026-07-15 14:45:00"
+
+    # 3. Test with a custom format that omits the year (e.g. "%m-%d %H:%M")
+    invoke("set", "datetime_in_format", "%m-%d %H:%M")
+
+    # We add a task for Dec 25 at 18:00. This should default to this year (or next year if past)
+    result = invoke("add", "12-25 18:00", "年省略カスタム入力")
+    assert result.exit_code == 0, result.output
+
+    data = json.loads(taskfile.read_text(encoding="utf-8"))
+    target_task = [t for t in data["tasks"] if t["task"] == "年省略カスタム入力"][0]
+    assert "-12-25 18:00:00" in target_task["date"]
+
+    # 4. Test renew using the custom input format
+    # Let's renew "カスタム入力タスク" (which is due 2026-07-15 14:45:00) to "11-30 09:00" using custom format "%m-%d %H:%M"
+    result = invoke("renew", "1", "11-30 09:00")
+    assert result.exit_code == 0, result.output
+
+    data = json.loads(taskfile.read_text(encoding="utf-8"))
+    updated_task = [t for t in data["tasks"] if t["task"] == "カスタム入力タスク"][0]
+    assert "-11-30 09:00:00" in updated_task["date"]
+
+    # 5. European style "%d/%m %H:%M" (day before month)
+    invoke("set", "datetime_in_format", "%d/%m %H:%M")
+    # We add a task on June 15th (15/06) at 12:00
+    result = invoke("add", "15/06 12:00", "欧州スタイルタスク")
+    assert result.exit_code == 0, result.output
+
+    data = json.loads(taskfile.read_text(encoding="utf-8"))
+    european_task = [t for t in data["tasks"] if t["task"] == "欧州スタイルタスク"][0]
+    assert "-06-15 12:00:00" in european_task["date"]
+
+    # 6. Japanese style "%m/%d %H:%M" (month before day)
+    invoke("set", "datetime_in_format", "%m/%d %H:%M")
+    # We add a task on June 15th (06/15) at 12:00
+    result = invoke("add", "06/15 12:00", "日本スタイルタスク")
+    assert result.exit_code == 0, result.output
+
+    data = json.loads(taskfile.read_text(encoding="utf-8"))
+    japanese_task = [t for t in data["tasks"] if t["task"] == "日本スタイルタスク"][0]
+    assert "-06-15 12:00:00" in japanese_task["date"]
+
+    # 7. Date-only European style "%d/%m" (no time)
+    invoke("set", "datetime_in_format", "%d/%m")
+    # We add a task on July 20th (20/07) without time
+    result = invoke("add", "20/07", "日付のみ欧州スタイル")
+    assert result.exit_code == 0, result.output
+
+    data = json.loads(taskfile.read_text(encoding="utf-8"))
+    task_eu_date = [t for t in data["tasks"] if t["task"] == "日付のみ欧州スタイル"][0]
+    assert "-07-20 08:00:00" in task_eu_date["date"]
+
+    # 8. Date-only Japanese style "%m/%d" (no time)
+    invoke("set", "datetime_in_format", "%m/%d")
+    # We add a task on July 20th (07/20) without time
+    result = invoke("add", "07/20", "日付のみ日本スタイル")
+    assert result.exit_code == 0, result.output
+
+    data = json.loads(taskfile.read_text(encoding="utf-8"))
+    task_ja_date = [t for t in data["tasks"] if t["task"] == "日付のみ日本スタイル"][0]
+    assert "-07-20 08:00:00" in task_ja_date["date"]
+
+    # 9. Test dedicated "date_in_format" (e.g. "%m.%d")
+    invoke("set", "date_in_format", "%m.%d")
+    # We add a task on August 10th (08.10) without time
+    result = invoke("add", "08.10", "date_in_formatタスク")
+    assert result.exit_code == 0, result.output
+
+    data = json.loads(taskfile.read_text(encoding="utf-8"))
+    task_dedicated_date = [
+        t for t in data["tasks"] if t["task"] == "date_in_formatタスク"
+    ][0]
+    assert "-08-10 08:00:00" in task_dedicated_date["date"]
+
+    # 10. Test coexistence of both "datetime_in_format" and "date_in_format"
+    invoke("set", "datetime_in_format", "%Y/%m/%d %H:%M")
+    invoke("set", "date_in_format", "%m.%d")
+
+    # input matching datetime_in_format
+    result_dt = invoke("add", "2026/09/05 16:40", "共存時datetime入力")
+    assert result_dt.exit_code == 0, result_dt.output
+
+    # input matching date_in_format
+    result_d = invoke("add", "09.05", "共存時date入力")
+    assert result_d.exit_code == 0, result_d.output
+
+    data = json.loads(taskfile.read_text(encoding="utf-8"))
+    task_dt_coexist = [t for t in data["tasks"] if t["task"] == "共存時datetime入力"][0]
+    task_d_coexist = [t for t in data["tasks"] if t["task"] == "共存時date入力"][0]
+
+    assert task_dt_coexist["date"] == "2026-09-05 16:40:00"
+    assert "-09-05 08:00:00" in task_d_coexist["date"]

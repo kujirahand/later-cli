@@ -112,13 +112,36 @@ later set datetime_format "%Y/%m/%d %H:%M"
 
 ### Date Display Format Customization (`datetime_format`)
 
-By default, notification timestamps in the task list (`later list`) omit the year and use an `m/d weekday H:i` style format (for example: `03/01Wed03:33`).
-If you want to change the display format, set the `datetime_format` key in `tasks.json`.
 
-You can use Python `strftime` format specifiers:
-- **`%Y/%m/%d %H:%M`**: `2026/06/01 10:30`
-- **`%d/%m %H:%M`**: `01/06 10:30` (European style)
-- **`%b %d, %Y %I:%M %p`**: `Jun 01, 2026 10:30 AM` (US style)
+By default, notification timestamps in the task list (`later list`) omit the year and are displayed in a format like `MM/DD(weekday) HH:MM` (e.g., `03/01Wed03:33`).
+If you want to change the display format, use `later set datetime_format (format)` to set your preferred format string.
+
+You can use Python's [strftime](https://docs.python.org/3/library/datetime.html#strftime-and-strptime-format-codes) format specifiers.
+
+| Format Example | Display Example |
+| --- | --- |
+| `%Y/%m/%d %H:%M` | `2026/06/01 10:30` |
+| `%d/%m %H:%M` | `01/06 10:30` (European style) |
+| `%b %d, %Y %I:%M %p` | `Jun 01, 2026 10:30 AM` (US style) |
+| `%m/%d(%a) %H:%M` | `06/01(Mon) 10:30` (Japanese style) |
+
+### Date Input Format Customization (`datetime_in_format`)
+
+You can also customize the date input format when adding or editing tasks. By default, formats like `MM/DD HH` are supported, but you can change this by setting a custom format string to the `datetime_in_format` key.
+
+```sh
+# Change the date input format
+later set datetime_in_format "%Y.%m.%d %H:%M"
+```
+
+For the format string, use Python's [strptime](https://docs.python.org/3/library/datetime.html#strftime-and-strptime-format-codes) format specifiers. For example, if you set `%Y.%m.%d %H:%M`, you can enter dates like `2026.06.01 10:30` when adding or editing tasks.
+
+| Format Example | Input Example |
+| --- | --- |
+| `%Y.%m.%d %H:%M` | `2026.06.01 10:30` |
+| `%d/%m %H:%M` | `01/06 10:30` (European style) |
+| `%b %d, %Y %I:%M %p` | `Jun 01, 2026 10:30 AM` (US style) |
+| `%m/%d(%a) %H:%M` | `06/01(Mon) 10:30` (Japanese style) |
 
 ## Synchronization with Web API (sync)
 

@@ -314,6 +314,51 @@ def get_target_year_month(year: int, month: int, shift: int) -> tuple[int, int]:
 def calc_due_date(due: str) -> datetime:
     """Parse a due expression and return the notification datetime."""
     now = datetime.now()
+
+    # Try custom formats first if configured
+    raw_data = load_raw_data()
+    due_clean = due.strip()
+
+    def try_custom_parse(fmt: str) -> datetime | None:
+        if not fmt:
+            return None
+        try:
+            # Check if year directive is present in fmt
+            has_year = "%Y" in fmt or "%y" in fmt
+
+            if not has_year:
+                # Prepend current year to input and format to avoid Python 3.13+ DeprecationWarning
+                fmt_for_parse = "%Y|" + fmt
+                input_for_parse = f"{now.year}|" + due_clean
+            else:
+                fmt_for_parse = fmt
+                input_for_parse = due_clean
+
+            parsed_date = datetime.strptime(input_for_parse, fmt_for_parse)
+            # If time is omitted in the format, default to 08:00:00
+            if not any(x in fmt for x in ("%H", "%I", "%M", "%S", "%p")):
+                parsed_date = parsed_date.replace(
+                    hour=8, minute=0, second=0, microsecond=0
+                )
+            # If year was omitted from the format, it was parsed with the current year.
+            # Move to next year if the date is already in the past.
+            if not has_year:
+                if parsed_date.date() < now.date():
+                    parsed_date = parsed_date.replace(year=now.year + 1)
+            return parsed_date
+        except ValueError:
+            return None
+
+    # 1. Try custom datetime format first
+    parsed_dt = try_custom_parse(raw_data.get("datetime_in_format"))
+    if parsed_dt:
+        return parsed_dt
+
+    # 2. Try custom date format second
+    parsed_d = try_custom_parse(raw_data.get("date_in_format"))
+    if parsed_d:
+        return parsed_d
+
     normalized = due.strip().lower()
     normalized = " ".join(normalized.split())
     if normalized == "now" or normalized == "すぐ" or normalized == "今":
