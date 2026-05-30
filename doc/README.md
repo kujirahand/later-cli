@@ -92,7 +92,7 @@ If you want to specify a custom number of days to display in the calendar, use t
 later cal --d 30
 ```
 
-You can also use the shorthand command `later cal30` to quickly display a 30-day calendar view.
+You can also use the shortcut command `later cal30` to quickly display a 30-day calendar view.
 
 ## 7. Checking Data File Location
 
