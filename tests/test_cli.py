@@ -667,6 +667,18 @@ def test_renew_command(invoke, taskfile):
     data = json.loads(taskfile.read_text(encoding="utf-8"))
     assert data["tasks"][0]["date"] == "2026-07-02 13:30:00"
 
+    # 具体的な日付で期限を指定 (12/3 15:30)
+    result = invoke("renew", "1", "12/3 15:30")
+    assert result.exit_code == 0
+    data = json.loads(taskfile.read_text(encoding="utf-8"))
+    assert "12-03 15:30:00" in data["tasks"][0]["date"]
+
+    # 具体的な日付で期限を指定 (6/1)
+    result = invoke("renew", "1", "6/1")
+    assert result.exit_code == 0
+    data = json.loads(taskfile.read_text(encoding="utf-8"))
+    assert "06-01 08:00:00" in data["tasks"][0]["date"]
+
     # 無効なインデックス
     result = invoke("renew", "2", "1d")
     assert result.exit_code != 0

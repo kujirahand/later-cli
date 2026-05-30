@@ -1194,7 +1194,7 @@ def parse_offset(offset_str: str) -> timedelta:
 @app.command()
 def renew(number: int, offset: str):
     """
-    Extend the due date of a task by a specified offset (e.g. 7d, 2h).
+    Extend the due date of a task by a specified offset (e.g. 7d, 2h) or set to a specific date (e.g. 6/1, tomorrow).
     """
     tasks = load_tasks()
     if number < 1 or number > len(tasks):
@@ -1206,8 +1206,16 @@ def renew(number: int, offset: str):
     except ValueError:
         raise typer.BadParameter(get_msg("err_date_range"))
 
-    delta = parse_offset(offset)
-    new_due = current_due + delta
+    try:
+        # Try parsing as a relative offset first
+        delta = parse_offset(offset)
+        new_due = current_due + delta
+    except typer.BadParameter:
+        # If it's not a relative offset, try parsing as an absolute or relative target date
+        try:
+            new_due = calc_due_date(offset)
+        except typer.BadParameter:
+            raise typer.BadParameter(get_msg("err_date_format"))
 
     # Update date and save
     task["date"] = new_due.strftime("%Y-%m-%d %H:%M:%S")
