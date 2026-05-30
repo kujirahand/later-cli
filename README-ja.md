@@ -125,6 +125,22 @@ Pythonの `strftime` フォーマット指定子を使用できます。
 
 `later-cli` は、複数のデバイス間での双方向タスク同期や、リモートのWeb APIサーバーへのタスクデータのバックアップに対応しています。同期を実行すると、ローカルで行った変更履歴（タスクの追加、削除、完了/未完了状態の変更イベント）がリモートサーバーに送信され、同時にサーバー上の最新イベントを受信してローカルのデータベースに適用します。
 
+[こちらのlater-api](https://aoikujira.com/later-api/)では、Web APIサーバーで同期機能を試すことができます。later-apiで、APIキーを発行して、以下のようにして同期機能を設定できます。
+
+```sh
+# APIエンドポイントとAPIキーの設定
+later set api_endpoint https://aoikujira.com/later-api/
+later set api_key "laterapi::xx:xxxxxx..."
+# APIとの疎通テスト
+later sync hello
+# タスクの双方向同期を実行
+later sync
+```
+
+以下でWebサービスのソースコードを公開していますので、これを利用して独自の同期サーバーを構築することも可能です。
+
+- [later-apiのリポジトリ](https://github.com/kujirahand/later-api)
+
 ### 同期の設定
 
 同期を行うには、`set` コマンドを使用して、APIのエンドポイントURLとAPIキーを `tasks.json` に設定します。
