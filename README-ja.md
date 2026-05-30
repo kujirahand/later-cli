@@ -123,35 +123,26 @@ Pythonの `strftime` フォーマット指定子を使用できます。
 
 ## Web APIとの同期機能 (sync)
 
-`later-cli` は、複数のデバイス間での双方向タスク同期や、リモートのWeb APIサーバーへのタスクデータのバックアップに対応しています。同期を実行すると、ローカルで行った変更履歴（タスクの追加、削除、完了/未完了状態の変更イベント）がリモートサーバーに送信され、同時にサーバー上の最新イベントを受信してローカルのデータベースに適用します。
+`later-cli` は、複数のデバイス間での双方向タスク同期や、リモートのWeb APIサーバー`later-api`へのタスクデータのバックアップに対応しています。同期を実行すると、ローカルで行った変更履歴（タスクの追加、削除、完了/未完了状態の変更イベント）がリモートサーバーに送信され、同時にサーバー上の最新イベントを受信してローカルのデータベースに適用します。
 
-[こちらのlater-apiサービス](https://aoikujira.com/later-api/)では、Web APIサーバーで同期機能を試すことができます。later-apiで、APIキーを発行して、以下のようにして同期機能を設定できます。
+### 1.APIキーを発行
+
+[later-api](https://later-api.aoikujira.com/)にサインアップして、APIキーを発行してください。
+APIキーは発行時のみ表示されるので、必ず控えておいてください。
+
+### 2.later-cliにAPIキーを登録
+
+ターミナルで以下のコマンドを実行して、APIエンドポイントURLとAPIキーを登録してください。APIキーは `laterapi::xxx::xxxxxxx` のような形式の文字列です。
 
 ```sh
 # APIエンドポイントとAPIキーの設定
-later set api_endpoint https://aoikujira.com/later-api/
-later set api_key "laterapi::xx:xxxxxx..."
-# APIとの疎通テスト
-later sync hello
-# タスクの双方向同期を実行
-later sync
+later set api_endpoint https://later-api.aoikujira.com/
+later set api_key "ここに発行したAPIキーを入力してください"
 ```
 
-以下でWebサービスのソースコードを公開していますので、これを利用して独自の同期サーバーを構築することも可能です。
+なお、以下でWebサービスのソースコードを公開していますので、これを利用して独自の同期サーバーを構築することも可能です。
 
 - [later-apiのリポジトリ](https://github.com/kujirahand/later-api)
-
-### 同期の設定
-
-同期を行うには、`set` コマンドを使用して、APIのエンドポイントURLとAPIキーを `tasks.json` に設定します。
-
-```bash
-# リモートAPIのベースエンドポイントURLを設定
-later set api_endpoint "https://example.com"
-
-# APIキーを設定 (形式: laterapi::xxx::xxxx)
-later set api_key "laterapi::your_api_key_here"
-```
 
 ### 接続・認証テスト (sync hello)
 

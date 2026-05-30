@@ -122,35 +122,27 @@ You can use Python `strftime` format specifiers:
 
 ## Synchronization with Web API (sync)
 
-`later-cli` supports bi-directional task synchronization across multiple devices and task data backup to a remote Web API server. When synchronization runs, your local change history (task creation, deletion, and complete/incomplete status change events) is sent to the remote server, while the latest events on the server are received and applied to your local database.
+`later-cli` supports bi-directional task synchronization across multiple devices and backup of task data to the remote Web API server `later-api`. When synchronization runs, your local change history (task creation, deletion, and complete/incomplete status change events) is sent to the remote server, while the latest events on the server are received and applied to your local database.
 
-You can try synchronization with a Web API server at [later-api](https://aoikujira.com/later-api/). In later-api, issue an API key and configure synchronization like this:
+### 1. Issue an API Key
+
+Sign up at [later-api](https://later-api.aoikujira.com/) and issue an API key.
+The API key is shown only once when it is issued, so be sure to save it.
+
+### 2. Register the API Key in later-cli
+
+Run the following commands in your terminal to register the API endpoint URL and API key.
+The API key must be a string in a format like `laterapi::xxx::xxxxxxx`.
 
 ```sh
 # Set API endpoint and API key
-later set api_endpoint https://aoikujira.com/later-api/
-later set api_key "laterapi::xx:xxxxxx..."
-# Test connectivity with the API
-later sync hello
-# Run bi-directional task synchronization
-later sync
+later set api_endpoint https://later-api.aoikujira.com/
+later set api_key "enter the issued API key here"
 ```
 
-The source code of the Web service is also available below, so you can use it to build your own synchronization server.
+The source code of the Web service is available below, so you can also use it to build your own synchronization server.
 
 - [later-api repository](https://github.com/kujirahand/later-api)
-
-### Synchronization Configuration
-
-To set up synchronization, you must configure the API endpoint URL and your API key in `tasks.json` using the `set` command:
-
-```bash
-# Set the remote API base endpoint URL
-later set api_endpoint "https://example.com"
-
-# Set your API key (must follow format: laterapi::xxx::xxxx)
-later set api_key "laterapi::your_api_key_here"
-```
 
 ### Connection & Authentication Test (sync hello)
 
