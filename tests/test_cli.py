@@ -1006,3 +1006,73 @@ def test_datetime_in_format_customization(invoke, taskfile):
 
     assert task_dt_coexist["date"] == "2026-09-05 16:40:00"
     assert "-09-05 08:00:00" in task_d_coexist["date"]
+
+
+def test_list_formats(invoke, taskfile):
+    from storage import set_data_file, save_tasks
+    import csv
+    import io
+
+    set_data_file(taskfile)
+
+    # 1. Test empty tasks list for json and csv
+    save_tasks([])
+    result_json_empty = invoke("list", "--format=json")
+    assert result_json_empty.exit_code == 0
+    empty_tasks = json.loads(result_json_empty.output)
+    assert empty_tasks == []
+
+    result_csv_empty = invoke("list", "--format=csv")
+    assert result_csv_empty.exit_code == 0
+    csv_reader = csv.reader(io.StringIO(result_csv_empty.output))
+    rows = list(csv_reader)
+    assert len(rows) == 1
+    assert rows[0] == ["no", "guid", "task", "due", "remaining", "status"]
+
+    # 2. Add some tasks and check format outputs
+    res1 = invoke("add", "2026-06-01 12:00", "タスクCSV_JSON1")
+    assert res1.exit_code == 0, res1.output
+    res2 = invoke("add", "2026-06-02 15:00", "タスクCSV_JSON2")
+    assert res2.exit_code == 0, res2.output
+    res3 = invoke("done", "2")
+    assert res3.exit_code == 0, res3.output
+
+    # JSON test
+    result_json = invoke("list", "--format=json")
+    assert result_json.exit_code == 0, result_json.output
+    json_data = json.loads(result_json.output)
+    assert len(json_data) == 2
+    assert json_data[0]["no"] == 1
+    assert "guid" in json_data[0]
+    assert len(json_data[0]["guid"]) > 0
+    assert json_data[0]["task"] == "タスクCSV_JSON1"
+    assert json_data[0]["due"] == "2026-06-01 12:00:00"
+    assert json_data[0]["status"] == "todo"
+    assert "remaining" in json_data[0]
+
+    assert json_data[1]["no"] == 2
+    assert "guid" in json_data[1]
+    assert len(json_data[1]["guid"]) > 0
+    assert json_data[1]["task"] == "タスクCSV_JSON2"
+    assert json_data[1]["due"] == "2026-06-02 15:00:00"
+    assert json_data[1]["status"] == "done"
+
+    # CSV test
+    result_csv = invoke("list", "--format=csv")
+    assert result_csv.exit_code == 0
+    csv_reader = csv.reader(io.StringIO(result_csv.output))
+    rows = list(csv_reader)
+    assert len(rows) == 3
+    assert rows[0] == ["no", "guid", "task", "due", "remaining", "status"]
+    assert rows[1][0] == "1"
+    assert len(rows[1][1]) > 0
+    assert rows[1][2] == "タスクCSV_JSON1"
+    assert rows[1][3] == "2026-06-01 12:00:00"
+    assert rows[1][5] == "todo"
+
+    assert rows[2][0] == "2"
+    assert len(rows[2][1]) > 0
+    assert rows[2][2] == "タスクCSV_JSON2"
+    assert rows[2][3] == "2026-06-02 15:00:00"
+    assert rows[2][5] == "done"
+

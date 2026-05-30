@@ -42,6 +42,14 @@ LIST_TARGETS = Literal[
     "done",  # Show only tasks that are marked as done
 ]
 
+# Define the type for output format
+FORMAT_TYPES = Literal[
+    "text",  # Default text table format
+    "csv",   # CSV format
+    "json",  # JSON format
+]
+
+
 # Create Typer and Rich console instances
 app = typer.Typer(no_args_is_help=False, add_completion=True)
 sync_app = typer.Typer(
@@ -910,13 +918,18 @@ def get_countdown_str(date_str: str) -> str:
         return get_msg("overdue_ago", "".join(parts))
 
 
-def show_tasks(tasks: list[dict], title: str, target: LIST_TARGETS = "all"):
-    """Display the task list in a table."""
-    if len(tasks) == 0:
-        # Show message and return when there are no tasks
-        console.print(get_msg("no_tasks"))
-        return
+def strip_markup(text: str) -> str:
+    """Strip Rich markup tags from a string."""
+    return re.sub(r"\[.*?\]", "", text)
 
+
+def show_tasks(
+    tasks: list[dict],
+    title: str,
+    target: LIST_TARGETS = "all",
+    format: FORMAT_TYPES = "text",
+):
+    """Display the task list in the specified format."""
     now = datetime.now()
     filtered_tasks = []
 
@@ -947,6 +960,40 @@ def show_tasks(tasks: list[dict], title: str, target: LIST_TARGETS = "all"):
 
         if keep:
             filtered_tasks.append((idx, task))
+
+    if format == "json":
+        output_tasks = []
+        for original_idx, task in filtered_tasks:
+            countdown = strip_markup(get_countdown_str(task["date"]))
+            output_tasks.append({
+                "no": original_idx,
+                "guid": task.get("guid", ""),
+                "task": task["task"],
+                "due": task["date"],
+                "remaining": countdown,
+                "status": "done" if task.get("status") == "done" else "todo",
+            })
+        print(json.dumps(output_tasks, indent=2, ensure_ascii=False))
+        return
+
+    if format == "csv":
+        import csv
+        import sys
+
+        writer = csv.writer(sys.stdout, lineterminator="\n")
+        writer.writerow(["no", "guid", "task", "due", "remaining", "status"])
+        for original_idx, task in filtered_tasks:
+            countdown = strip_markup(get_countdown_str(task["date"]))
+            status = "done" if task.get("status") == "done" else "todo"
+            writer.writerow([
+                original_idx,
+                task.get("guid", ""),
+                task["task"],
+                task["date"],
+                countdown,
+                status,
+            ])
+        return
 
     if len(filtered_tasks) == 0:
         console.print(get_msg("no_tasks"))
@@ -997,32 +1044,44 @@ def show_tasks(tasks: list[dict], title: str, target: LIST_TARGETS = "all"):
     console.print(table)
 
 
+
 @app.command("list")
-def show_alias(target: LIST_TARGETS = "all"):
+def show_alias(
+    target: LIST_TARGETS = "all",
+    format: FORMAT_TYPES = typer.Option("text", "--format", help="Output format (text, csv, json)"),
+):
     """Show the task list."""
     tasks = load_tasks()
-    show_tasks(tasks, get_msg("list_title"), target)
+    show_tasks(tasks, get_msg("list_title"), target, format)
 
 
 @app.command("ls")
-def list_alias(target: LIST_TARGETS = "all"):
+def list_alias(
+    target: LIST_TARGETS = "all",
+    format: FORMAT_TYPES = typer.Option("text", "--format", help="Output format (text, csv, json)"),
+):
     """alias for `list` command"""
     tasks = load_tasks()
-    show_tasks(tasks, get_msg("list_title"), target)
+    show_tasks(tasks, get_msg("list_title"), target, format)
 
 
 @app.command()
-def show(target: LIST_TARGETS = "all"):
+def show(
+    target: LIST_TARGETS = "all",
+    format: FORMAT_TYPES = typer.Option("text", "--format", help="Output format (text, csv, json)"),
+):
     """alias for `list` command"""
     tasks = load_tasks()
-    show_tasks(tasks, get_msg("list_title"), target)
+    show_tasks(tasks, get_msg("list_title"), target, format)
 
 
 @app.command("ls-todo")
-def ls_todo():
+def ls_todo(
+    format: FORMAT_TYPES = typer.Option("text", "--format", help="Output format (text, csv, json)"),
+):
     """alias for `later list --target=todo` command"""
     tasks = load_tasks()
-    show_tasks(tasks, get_msg("list_title"), target="todo")
+    show_tasks(tasks, get_msg("list_title"), target="todo", format=format)
 
 
 @app.command()
