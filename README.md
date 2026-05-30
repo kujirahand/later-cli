@@ -143,6 +143,37 @@ For the format string, use Python's [strptime](https://docs.python.org/3/library
 | `%b %d, %Y %I:%M %p` | `Jun 01, 2026 10:30 AM` (US style) |
 | `%m/%d(%a) %H:%M` | `06/01(Mon) 10:30` (Japanese style) |
 
+### Date-Only Input Format Customization (`date_in_format`)
+
+Likewise, by setting a custom format for the `date_in_format` key, you can customize the format used to input date-only values when adding or editing tasks. By default, formats like `MM/DD` are supported.
+
+```sh
+# Change the date-only input format (MM.DD)
+later set date_in_format "%m.%d"
+```
+
+If the input is date-only and contains no time information, the notification time is automatically set to the app default: **`08:00:00` (8:00 AM)**. Also, when the year is omitted, the current year (or next year if that date has already passed) is automatically complemented.
+
+| Format Example | Input Example | Stored Notification Datetime (when run in 2026) |
+| --- | --- | --- |
+| `%Y.%m.%d` | `2026.07.15` | `2026-07-15 08:00:00` |
+| `%d/%m` | `15/06` (European style) | `2026-06-15 08:00:00` |
+| `%m/%d` | `06/15` (Japanese style) | `2026-06-15 08:00:00` |
+
+### Deadline Renewal and Direct Date Input (`renew` command)
+
+The `later renew` command supports not only extending deadlines by relative offsets, but also updating a deadline by directly specifying a date or datetime.
+
+```sh
+# Extend task 1 by 7 days (relative offset)
+later renew 1 "7d"
+
+# Change task 1 deadline directly to 6/1 08:00:00 (direct date input)
+later renew 1 "6/1"
+```
+
+When specifying a date directly, you can also use the custom formats configured above for `datetime_in_format` and `date_in_format`.
+
 ## Synchronization with Web API (sync)
 
 `later-cli` supports bi-directional task synchronization across multiple devices and backup of task data to the remote Web API server `later-api`. When synchronization runs, your local change history (task creation, deletion, and complete/incomplete status change events) is sent to the remote server, while the latest events on the server are received and applied to your local database.
