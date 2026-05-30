@@ -122,7 +122,21 @@ You can use Python `strftime` format specifiers:
 
 ## Synchronization with Web API (sync)
 
-`later-cli` supports bi-directional task synchronization between multiple devices or with a remote Web API server. Running the synchronization will push your local event history (task addition, deletion, and status changes) to the remote server and pull the latest events to keep your local database fully up to date.
+`later-cli` supports bi-directional task synchronization across multiple devices and task data backup to a remote Web API server. When synchronization runs, your local change history (task creation, deletion, and complete/incomplete status change events) is sent to the remote server, while the latest events on the server are received and applied to your local database.
+
+You can try synchronization with a Web API server at [later-api](https://aoikujira.com/later-api/). In later-api, issue an API key and configure synchronization like this:
+
+```sh
+# Set API endpoint and API key
+later set api_endpoint https://aoikujira.com/later-api/
+later set api_key "laterapi::xx:xxxxxx..."
+# Test connectivity with the API
+later sync hello
+# Run bi-directional task synchronization
+later sync
+```
+
+The source code of the Web service is also available below, so you can use it to build your own synchronization server.
 
 - [later-api repository](https://github.com/kujirahand/later-api)
 
