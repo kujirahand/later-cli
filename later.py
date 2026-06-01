@@ -1,52 +1,820 @@
 #!/usr/bin/env python
-""" CLIでタスクを管理するプログラム """
+"""CLI application for managing tasks."""
 
 from datetime import datetime, timedelta
+import importlib.metadata
+import json
+import os
 from pathlib import Path
 import re
 import typer
-import rich
+from typing import Literal
+from rich import box
 from rich.console import Console
 from rich.table import Table
-from storage import load_tasks, save_tasks, get_data_file, reset_data_file, set_data_file
+from storage import (
+    load_tasks,
+    save_tasks,
+    get_data_file,
+    reset_data_file,
+    set_data_file,
+    get_language,
+    load_raw_data,
+    save_raw_data,
+    get_db_file,
+    restore_tasks_from_events,
+)
 
-# TyperやConsoleのインスタンスを作成
-app = typer.Typer(no_args_is_help=True,add_completion=False)
+# Define the type for clear command targets
+CLEAR_TARGETS = Literal[
+    "overdue",  # Tasks past their due date
+    "all",  # All tasks
+    "done",  # Completed tasks
+]
+
+# Define the type for list command targets
+LIST_TARGETS = Literal[
+    "all",  # Show all tasks
+    "due",  # Show only tasks that are due or overdue
+    "week",  # Show tasks due within the next 7 days
+    "month",  # Show tasks due within the next 30 days
+    "todo",  # Show only tasks that are not marked as done
+    "done",  # Show only tasks that are marked as done
+]
+
+# Define the type for output format
+FORMAT_TYPES = Literal[
+    "text",  # Default text table format
+    "csv",   # CSV format
+    "json",  # JSON format
+]
+
+
+# Create Typer and Rich console instances
+app = typer.Typer(no_args_is_help=False, add_completion=True)
+sync_app = typer.Typer(
+    no_args_is_help=False, help="Synchronize tasks with remote Web API."
+)
+app.add_typer(sync_app, name="sync")
 console = Console()
 
-@app.callback()
+MESSAGES = {
+    "en": {
+        "added_title": "[bold yellow]Added new task![/]",
+        "col_pos": "Position",
+        "col_task": "Task",
+        "col_due": "Due Date",
+        "no_tasks": "- [bold green]later:[/bold green] [blue]No tasks found.[/blue]",
+        "list_title": "■ Saved Tasks",
+        "col_no": "No.",
+        "col_remaining": "Remaining",
+        "overdue": "[red]Overdue[/red]",
+        "overdue_ago": "[red]Overdue ({} ago)[/red]",
+        "unknown": "Unknown",
+        "soon": "Soon",
+        "unit_d": "d",
+        "unit_h": "h",
+        "unit_m": "m",
+        "err_idx_range": "Number must be between 1 and {}.",
+        "deleted_task": "Deleted task: {}",
+        "clear_confirm": "Do you want to delete overdue tasks?",
+        "clear_confirm_done": "Do you want to delete done tasks?",
+        "clear_confirm_all": "Do you want to delete all tasks?",
+        "cancelled": "Cancelled.",
+        "clear_done": "Deleted overdue tasks. Remaining tasks: {}",
+        "due_tasks_title": "■ Due Tasks",
+        "cal_title_weekly": "■ Weekly Calendar",
+        "cal_title_days": "■ {}-Day Calendar",
+        "col_date": "Date",
+        "col_offset": "Offset",
+        "cal_today": "Today",
+        "cal_tomorrow": "Tomorrow",
+        "info_saved_in": "Tasks are saved in the following file:",
+        "err_invalid_time": "Time must be in the correct range (0-23 hours, 0-59 minutes).",
+        "err_invalid_nth_weekday": "The specified date (Nth weekday) does not exist.",
+        "err_date_range": "Date or time values are out of range.",
+        "err_date_not_exist": "The specified date ({}) does not exist.",
+        "err_date_format": "Due date must be in a format like '3d', '2h', weekdays, dates, or specific times.",
+        "col_status": "Status",
+        "status_todo": "[yellow]todo[/yellow]",
+        "status_done": "[green]done[/green]",
+        "marked_done": "Marked task as done: {}",
+        "marked_todo": "Marked task as todo: {}",
+        "renewed_task": "Renewed task '{}': new due date is {}",
+        "set_success": "Set key '{}' to {}.",
+    },
+    "ja": {
+        "added_title": "[bold yellow]新しいタスクを追加しました！[/]",
+        "col_pos": "追加位置",
+        "col_task": "タスク内容",
+        "col_due": "通知日時",
+        "no_tasks": "- [bold green]later:[/bold green] [blue]タスクはありません。[/blue]",
+        "list_title": "■ 保存したタスク一覧",
+        "col_no": "No",
+        "col_remaining": "残り",
+        "overdue": "[red]超過[/red]",
+        "overdue_ago": "[red]超過 ({}前)[/red]",
+        "unknown": "不明",
+        "soon": "間もなく",
+        "unit_d": "日",
+        "unit_h": "時間",
+        "unit_m": "分",
+        "err_idx_range": "番号は 1 から {} の範囲で指定してください。",
+        "deleted_task": "タスクを削除しました: {}",
+        "clear_confirm": "期限が過ぎたタスクを削除しますか？",
+        "clear_confirm_done": "完了(done)のタスクを削除しますか?",
+        "clear_confirm_all": "全てのタスクを削除しますか?",
+        "cancelled": "キャンセルしました。",
+        "clear_done": "期限が過ぎたタスクを削除しました。残りのタスク数: {}",
+        "due_tasks_title": "■ 期限が来たタスク",
+        "cal_title_weekly": "■ 週間カレンダー",
+        "cal_title_days": "■ {}日カレンダー",
+        "col_date": "日付",
+        "col_offset": "+d",
+        "cal_today": "今日",
+        "cal_tomorrow": "明日",
+        "info_saved_in": "タスクは以下のファイルに保存されています:",
+        "err_invalid_time": "時刻は正しい範囲 (0時〜23時, 0分〜59分) で指定してください。",
+        "err_invalid_nth_weekday": "指定された日付（第{}番目の{}曜日）は存在しません。",
+        "err_date_range": "日付または時刻の数値が正しい範囲外です。",
+        "err_date_not_exist": "指定された日付（{}）はカレンダー上に存在しません。",
+        "err_date_format": "期限は '3d' / '2h' や曜日（例: '来週月曜'）、日付（例: '5/25'）、時刻指定（例: '明日10時'）の形式で指定してください。",
+        "col_status": "状態",
+        "status_todo": "[yellow]todo[/yellow]",
+        "status_done": "[green]完了[/green]",
+        "marked_done": "タスクを完了にしました: {}",
+        "marked_todo": "タスクを未完了にしました: {}",
+        "renewed_task": "タスクの期限を更新しました '{}': 新しい期限は {}",
+        "set_success": "キー '{}' の値を {} に設定しました。",
+    },
+}
+
+
+def get_msg(key: str, *args, **kwargs) -> str:
+    """Get a localized message for the currently configured language."""
+    lang = get_language()
+    msg_tpl = MESSAGES.get(lang, MESSAGES["en"]).get(key, MESSAGES["en"][key])
+    return msg_tpl.format(*args, **kwargs)
+
+
+def get_version() -> str:
+    """Get version info from package metadata or pyproject.toml."""
+    try:
+        return importlib.metadata.version("later-cli")
+    except importlib.metadata.PackageNotFoundError:
+        pass
+
+    pyproject_path = Path(__file__).parent / "pyproject.toml"
+    if not pyproject_path.exists():
+        return "unknown"
+    try:
+        content = pyproject_path.read_text(encoding="utf-8")
+        match = re.search(r'^version\s*=\s*"(.*?)"', content, re.MULTILINE)
+        if match:
+            return match.group(1)
+    except Exception:
+        pass
+    return "unknown"
+
+
+@app.callback(invoke_without_command=True)
 def main(
+    ctx: typer.Context,
     taskfile: Path | None = typer.Option(
         None,
         "--file",
-        help="タスクを保存する JSON ファイルを指定します。",
+        help="specify a custom task file (default: tasks.json in the current directory)",
     ),
 ):
-    """CLIでタスクを管理するプログラム"""
+    """CLI for managing tasks with due dates"""
     if taskfile is not None:
         set_data_file(taskfile)
     else:
         reset_data_file()
 
+    if ctx.invoked_subcommand is None:
+        tasks = load_tasks()
+        if len(tasks) <= 2:
+            console.print(ctx.get_help())
+            raise typer.Exit()
+        else:
+            show_tasks(tasks, get_msg("list_title"))
+            print("[HELP] `later --help`")
+
+
+@app.command("version")
+def version_cmd():
+    """show version info"""
+    version = get_version()
+    console.print(f"later-cli v{version}")
+
+
+WEEKDAY_MAP = {
+    "月": 0,
+    "火": 1,
+    "水": 2,
+    "木": 3,
+    "金": 4,
+    "土": 5,
+    "日": 6,
+    "月曜": 0,
+    "火曜": 1,
+    "水曜": 2,
+    "木曜": 3,
+    "金曜": 4,
+    "土曜": 5,
+    "日曜": 6,
+    "月曜日": 0,
+    "火曜日": 1,
+    "水曜日": 2,
+    "木曜日": 3,
+    "金曜日": 4,
+    "土曜日": 5,
+    "日曜日": 6,
+}
+
+ENGLISH_WEEKDAY_MAP = {
+    "monday": 0,
+    "tuesday": 1,
+    "wednesday": 2,
+    "thursday": 3,
+    "friday": 4,
+    "saturday": 5,
+    "sunday": 6,
+    "mon": 0,
+    "tue": 1,
+    "wed": 2,
+    "thu": 3,
+    "fri": 4,
+    "sat": 5,
+    "sun": 6,
+}
+
+ENGLISH_MONTH_MAP = {
+    "january": 1,
+    "jan": 1,
+    "february": 2,
+    "feb": 2,
+    "march": 3,
+    "mar": 3,
+    "april": 4,
+    "apr": 4,
+    "may": 5,
+    "june": 6,
+    "jun": 6,
+    "july": 7,
+    "jul": 7,
+    "august": 8,
+    "aug": 8,
+    "september": 9,
+    "sep": 9,
+    "october": 10,
+    "oct": 10,
+    "november": 11,
+    "nov": 11,
+    "december": 12,
+    "dec": 12,
+}
+
+N_MAP = {
+    "第一": 1,
+    "第二": 2,
+    "第三": 3,
+    "第四": 4,
+    "第五": 5,
+    "第1": 1,
+    "第2": 2,
+    "第3": 3,
+    "第4": 4,
+    "第5": 5,
+    "1": 1,
+    "2": 2,
+    "3": 3,
+    "4": 4,
+    "5": 5,
+}
+
+ENGLISH_N_MAP = {
+    "first": 1,
+    "second": 2,
+    "third": 3,
+    "fourth": 4,
+    "fifth": 5,
+    "1st": 1,
+    "2nd": 2,
+    "3rd": 3,
+    "4th": 4,
+    "5th": 5,
+    "1": 1,
+    "2": 2,
+    "3": 3,
+    "4": 4,
+    "5": 5,
+}
+
+
+def get_target_year_month(year: int, month: int, shift: int) -> tuple[int, int]:
+    """Return the new year/month after applying a month shift."""
+    m = month - 1 + shift
+    return year + (m // 12), (m % 12) + 1
+
+
 def calc_due_date(due: str) -> datetime:
-    """期限の表現を解析して、通知日時を計算する"""
+    """Parse a due expression and return the notification datetime."""
     now = datetime.now()
+
+    # Try custom formats first if configured
+    raw_data = load_raw_data()
+    due_clean = due.strip()
+
+    def try_custom_parse(fmt: str) -> datetime | None:
+        if not fmt:
+            return None
+        try:
+            # Check if year directive is present in fmt
+            has_year = "%Y" in fmt or "%y" in fmt
+
+            if not has_year:
+                # Prepend current year to input and format to avoid Python 3.13+ DeprecationWarning
+                fmt_for_parse = "%Y|" + fmt
+                input_for_parse = f"{now.year}|" + due_clean
+            else:
+                fmt_for_parse = fmt
+                input_for_parse = due_clean
+
+            parsed_date = datetime.strptime(input_for_parse, fmt_for_parse)
+            # If time is omitted in the format, default to 08:00:00
+            if not any(x in fmt for x in ("%H", "%I", "%M", "%S", "%p")):
+                parsed_date = parsed_date.replace(
+                    hour=8, minute=0, second=0, microsecond=0
+                )
+            # If year was omitted from the format, it was parsed with the current year.
+            # Move to next year if the date is already in the past.
+            if not has_year:
+                if parsed_date.date() < now.date():
+                    parsed_date = parsed_date.replace(year=now.year + 1)
+            return parsed_date
+        except ValueError:
+            return None
+
+    # 1. Try custom datetime format first
+    parsed_dt = try_custom_parse(raw_data.get("datetime_in_format"))
+    if parsed_dt:
+        return parsed_dt
+
+    # 2. Try custom date format second
+    parsed_d = try_custom_parse(raw_data.get("date_in_format"))
+    if parsed_d:
+        return parsed_d
+
     normalized = due.strip().lower()
+    normalized = " ".join(normalized.split())
     if normalized == "now" or normalized == "すぐ" or normalized == "今":
         return now
+    if normalized == "今日" or normalized == "本日" or normalized == "today":
+        return now.replace(hour=8, minute=0, second=0, microsecond=0)
     if normalized == "明日" or normalized == "tomorrow":
-        return (now + timedelta(days=1)).replace(hour=8, minute=0, second=0, microsecond=0)
-    if normalized == "明後日":
-        return (now + timedelta(days=2)).replace(hour=8, minute=0, second=0, microsecond=0)
+        return (now + timedelta(days=1)).replace(
+            hour=8, minute=0, second=0, microsecond=0
+        )
+    if normalized == "明後日" or normalized == "day after tomorrow":
+        return (now + timedelta(days=2)).replace(
+            hour=8, minute=0, second=0, microsecond=0
+        )
     if normalized == "来週" or normalized == "nextweek":
-        return (now + timedelta(days=7)).replace(hour=8, minute=0, second=0, microsecond=0)
+        return (now + timedelta(days=7)).replace(
+            hour=8, minute=0, second=0, microsecond=0
+        )
+    if normalized == "next week":
+        current_weekday = now.weekday()
+        days_to_monday = 7 - current_weekday
+        return (now + timedelta(days=days_to_monday)).replace(
+            hour=8, minute=0, second=0, microsecond=0
+        )
+
+    # Parse English relative days with optional time (e.g. "tomorrow 20:00")
+    day_word_match = re.fullmatch(
+        r"^(today|tomorrow|day after tomorrow|next week)\s+(?P<hour>\d{1,2}):(?P<minute>\d{2})(?::(?P<second>\d{2}))?$",
+        normalized,
+    )
+    if day_word_match:
+        day_word = day_word_match.group(1)
+        h = int(day_word_match.group("hour"))
+        m = int(day_word_match.group("minute"))
+        s = (
+            int(day_word_match.group("second"))
+            if day_word_match.group("second") is not None
+            else 0
+        )
+
+        if not (0 <= h < 24) or not (0 <= m < 60) or not (0 <= s < 60):
+            raise typer.BadParameter(get_msg("err_invalid_time"))
+
+        if day_word == "today":
+            target_date = now.replace(hour=h, minute=m, second=s, microsecond=0)
+        elif day_word == "tomorrow":
+            target_date = (now + timedelta(days=1)).replace(
+                hour=h, minute=m, second=s, microsecond=0
+            )
+        elif day_word == "day after tomorrow":
+            target_date = (now + timedelta(days=2)).replace(
+                hour=h, minute=m, second=s, microsecond=0
+            )
+        elif day_word == "next week":
+            current_weekday = now.weekday()
+            days_to_monday = 7 - current_weekday
+            target_date = (now + timedelta(days=days_to_monday)).replace(
+                hour=h, minute=m, second=s, microsecond=0
+            )
+
+        return target_date
+
+    # Parse English specific dates (e.g. "Dec 3", "December 3 15:30", "3 Dec 2026")
+    english_months = "(?:january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)"
+    eng_date_match1 = re.fullmatch(
+        rf"^(?P<month>{english_months})\s+(?P<day>\d{{1,2}})(?:,?\s+(?P<year>\d{{4}}))?(?:\s+(?P<hour>\d{{1,2}}):(?P<minute>\d{{2}})(?::(?P<second>\d{{2}}))?)?$",
+        normalized,
+    )
+    eng_date_match2 = re.fullmatch(
+        rf"^(?P<day>\d{{1,2}})\s+(?P<month>{english_months})(?:\s+(?P<year>\d{{4}}))?(?:\s+(?P<hour>\d{{1,2}}):(?P<minute>\d{{2}})(?::(?P<second>\d{{2}}))?)?$",
+        normalized,
+    )
+
+    date_match_found = None
+    if eng_date_match1:
+        date_match_found = eng_date_match1
+    elif eng_date_match2:
+        date_match_found = eng_date_match2
+
+    if date_match_found:
+        month_str = date_match_found.group("month")
+        day_str = date_match_found.group("day")
+        year_str = date_match_found.group("year")
+        hour_str = date_match_found.group("hour")
+        minute_str = date_match_found.group("minute")
+        second_str = date_match_found.group("second")
+
+        m = ENGLISH_MONTH_MAP[month_str]
+        d = int(day_str)
+
+        # Parse time (default: 08:00)
+        h = 8
+        minute_val = 0
+        second_val = 0
+
+        if hour_str is not None:
+            h = int(hour_str)
+            minute_val = int(minute_str)
+            second_val = int(second_str) if second_str is not None else 0
+
+        if (
+            not (1 <= m <= 12)
+            or not (1 <= d <= 31)
+            or not (0 <= h < 24)
+            or not (0 <= minute_val < 60)
+            or not (0 <= second_val < 60)
+        ):
+            raise typer.BadParameter(get_msg("err_date_range"))
+
+        if year_str is not None:
+            t_year = int(year_str)
+            try:
+                target_date = datetime(t_year, m, d, h, minute_val, second_val)
+            except ValueError:
+                raise typer.BadParameter(
+                    get_msg("err_date_not_exist", f"{t_year}-{m:02d}-{d:02d}")
+                )
+        else:
+            t_year = now.year
+            try:
+                target_date = datetime(t_year, m, d, h, minute_val, second_val)
+            except ValueError:
+                raise typer.BadParameter(
+                    get_msg("err_date_not_exist", f"{m:02d}-{d:02d}")
+                )
+
+            # Move to next year if already passed
+            if target_date.date() < now.date():
+                try:
+                    target_date = datetime(t_year + 1, m, d, h, minute_val, second_val)
+                except ValueError:
+                    raise typer.BadParameter(
+                        get_msg("err_date_not_exist", f"{m:02d}-{d:02d}")
+                    )
+
+        return target_date
+
+    # Parse English Nth-weekday expressions (e.g. "next month second Monday", "first Tuesday")
+    english_nths = "(?:first|second|third|fourth|fifth|1st|2nd|3rd|4th|5th|[1-5])"
+    english_weekday_names = "(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tue|wed|thu|fri|sat|sun)"
+    nth_match = re.fullmatch(
+        rf"^(?:(this\s+month|next\s+month|month\s+after\s+next)\s+)?({english_nths})\s+({english_weekday_names})(?:\s+(?P<hour>\d{1, 2}):(?P<minute>\d{2})(?::(?P<second>\d{2}))?)?$",
+        normalized,
+    )
+    if nth_match:
+        prefix = nth_match.group(1)
+        nth_str = nth_match.group(2)
+        weekday_str = nth_match.group(3)
+        hour_str = nth_match.group("hour")
+        minute_str = nth_match.group("minute")
+        second_str = nth_match.group("second")
+
+        nth = ENGLISH_N_MAP[nth_str]
+        target_weekday = ENGLISH_WEEKDAY_MAP[weekday_str]
+
+        if hour_str is not None:
+            h = int(hour_str)
+            m = int(minute_str)
+            s = int(second_str) if second_str is not None else 0
+        else:
+            h = 8
+            m = 0
+            s = 0
+
+        if not (0 <= h < 24) or not (0 <= m < 60) or not (0 <= s < 60):
+            raise typer.BadParameter(get_msg("err_invalid_time"))
+
+        shift = 0
+        if prefix == "next month":
+            shift = 1
+        elif prefix == "month after next":
+            shift = 2
+
+        def calculate_nth_weekday(y: int, m_val: int, n: int, w: int) -> datetime:
+            first_day_w = datetime(y, m_val, 1).weekday()
+            first_target_d = 1 + (w - first_day_w) % 7
+            target_d = first_target_d + (n - 1) * 7
+            return datetime(y, m_val, target_d, h, m, s)
+
+        t_year, t_month = get_target_year_month(now.year, now.month, shift)
+
+        try:
+            target_date = calculate_nth_weekday(t_year, t_month, nth, target_weekday)
+
+            if target_date.date() < now.date() and (
+                prefix == "this month" or not prefix
+            ):
+                t_year, t_month = get_target_year_month(now.year, now.month, 1)
+                target_date = calculate_nth_weekday(
+                    t_year, t_month, nth, target_weekday
+                )
+
+            return target_date
+        except ValueError:
+            raise typer.BadParameter(
+                get_msg("err_invalid_nth_weekday", nth, weekday_str)
+            )
+
+    # Parse English weekday expressions (e.g. "next Monday", "Wednesday 15:30")
+    weekday_match = re.fullmatch(
+        rf"^(?:(this\s+week|next\s+week|week\s+after\s+next|this|next)\s+)?({english_weekday_names})(?:\s+(?P<hour>\d{1, 2}):(?P<minute>\d{2})(?::(?P<second>\d{2}))?)?$",
+        normalized,
+    )
+    if weekday_match:
+        prefix = weekday_match.group(1)
+        weekday_str = weekday_match.group(2)
+        hour_str = weekday_match.group("hour")
+        minute_str = weekday_match.group("minute")
+        second_str = weekday_match.group("second")
+
+        target_weekday = ENGLISH_WEEKDAY_MAP[weekday_str]
+        current_weekday = now.weekday()
+
+        if hour_str is not None:
+            h = int(hour_str)
+            m = int(minute_str)
+            s = int(second_str) if second_str is not None else 0
+        else:
+            h = 8
+            m = 0
+            s = 0
+
+        if not (0 <= h < 24) or not (0 <= m < 60) or not (0 <= s < 60):
+            raise typer.BadParameter(get_msg("err_invalid_time"))
+
+        if prefix in ("next", "next week", "nextweek"):
+            days_to_monday = 7 - current_weekday
+            next_monday = now + timedelta(days=days_to_monday)
+            target_date = next_monday + timedelta(days=target_weekday)
+        elif prefix == "week after next":
+            days_to_monday = 7 - current_weekday
+            two_weeks_monday = now + timedelta(days=days_to_monday + 7)
+            target_date = two_weeks_monday + timedelta(days=target_weekday)
+        elif prefix in ("this", "this week", "thisweek"):
+            this_monday = now - timedelta(days=current_weekday)
+            target_date = this_monday + timedelta(days=target_weekday)
+            if target_date.date() < now.date():
+                target_date += timedelta(days=7)
+        else:
+            days_ahead = target_weekday - current_weekday
+            if days_ahead <= 0:
+                days_ahead += 7
+            target_date = now + timedelta(days=days_ahead)
+
+        return target_date.replace(hour=h, minute=m, second=s, microsecond=0)
+
+    # Parse time expressions (e.g. "明日10時", "明後日15時30分", "10:30", "本日18時")
+    time_match = re.fullmatch(
+        r"^(?P<day_word>今日|本日|明日|明後日|来週)?(?:の)?(?:(?P<hour>\d+)時(?:(?P<minute>\d+)分)?|(?P<hour_colon>\d+):(?P<minute_colon>\d+))$",
+        normalized,
+    )
+    if time_match:
+        day_word = time_match.group("day_word")
+
+        # Extract hour/minute
+        if time_match.group("hour") is not None:
+            h = int(time_match.group("hour"))
+            m = (
+                int(time_match.group("minute"))
+                if time_match.group("minute") is not None
+                else 0
+            )
+        else:
+            h = int(time_match.group("hour_colon"))
+            m = int(time_match.group("minute_colon"))
+
+        if not (0 <= h < 24) or not (0 <= m < 60):
+            raise typer.BadParameter(get_msg("err_invalid_time"))
+
+        # Decide the base date offset
+        if day_word == "明日":
+            days_offset = 1
+        elif day_word == "明後日":
+            days_offset = 2
+        elif day_word == "来週":
+            days_offset = 7
+        elif day_word in ("今日", "本日"):
+            days_offset = 0
+        else:
+            # If no day word is specified (e.g. "10時", "10:30"),
+            # use tomorrow when the time has already passed today.
+            temp_date = now.replace(hour=h, minute=m, second=0, microsecond=0)
+            if temp_date <= now:
+                days_offset = 1
+            else:
+                days_offset = 0
+
+        return (now + timedelta(days=days_offset)).replace(
+            hour=h, minute=m, second=0, microsecond=0
+        )
+
+    # Parse weekday expressions (e.g. "来週月曜", "今週の水曜日", "木曜日")
+    weekday_match = re.fullmatch(
+        r"^(今週|来週|再来週)?(?:の)?(月|火|水|木|金|土|日)(曜|曜日)?$", normalized
+    )
+    if weekday_match:
+        prefix = weekday_match.group(1)
+        weekday_char = weekday_match.group(2)
+        target_weekday = WEEKDAY_MAP[weekday_char]
+        current_weekday = now.weekday()  # 0=Mon, 6=Sun
+
+        if prefix == "来週":
+            # Use next Monday as the base
+            days_to_monday = 7 - current_weekday
+            next_monday = now + timedelta(days=days_to_monday)
+            target_date = next_monday + timedelta(days=target_weekday)
+        elif prefix == "再来週":
+            # Use Monday of the following week as the base
+            days_to_monday = 7 - current_weekday
+            two_weeks_monday = now + timedelta(days=days_to_monday + 7)
+            target_date = two_weeks_monday + timedelta(days=target_weekday)
+        elif prefix == "今週":
+            # Use this week's Monday as the base
+            this_monday = now - timedelta(days=current_weekday)
+            target_date = this_monday + timedelta(days=target_weekday)
+            # If already passed this week, move to next week
+            if target_date.date() < now.date():
+                target_date += timedelta(days=7)
+        else:
+            # Without prefix (e.g. "月曜"): nearest future weekday
+            days_ahead = target_weekday - current_weekday
+            if days_ahead <= 0:  # Today/past weekday goes to next week
+                days_ahead += 7
+            target_date = now + timedelta(days=days_ahead)
+
+        return target_date.replace(hour=8, minute=0, second=0, microsecond=0)
+
+    # Parse Nth-weekday expressions (e.g. "来月第二月曜", "今月の第3水曜日", "第一土曜日")
+    nth_match = re.fullmatch(
+        r"^(今月|来月|再来月)?(?:の)?(第一|第二|第三|第四|第五|第[1-5]|[1-5])(?:の)?(月|火|水|木|金|土|日)(曜|曜日)?$",
+        normalized,
+    )
+    if nth_match:
+        prefix = nth_match.group(1)
+        nth_str = nth_match.group(2)
+        weekday_char = nth_match.group(3)
+
+        nth = N_MAP[nth_str]
+        target_weekday = WEEKDAY_MAP[weekday_char]
+
+        # Determine target month shift
+        shift = 0
+        if prefix == "来月":
+            shift = 1
+        elif prefix == "再来月":
+            shift = 2
+
+        def calculate_nth_weekday(y: int, m: int, n: int, w: int) -> datetime:
+            # Compute the nth weekday w in month m of year y (0=Mon, 6=Sun)
+            # Weekday of the 1st day of the month
+            first_day_w = datetime(y, m, 1).weekday()
+            first_target_d = 1 + (w - first_day_w) % 7
+            target_d = first_target_d + (n - 1) * 7
+            # datetime raises ValueError if the computed day does not exist
+            return datetime(y, m, target_d, 8, 0, 0)
+
+        # Calculate target year/month
+        t_year, t_month = get_target_year_month(now.year, now.month, shift)
+
+        try:
+            target_date = calculate_nth_weekday(t_year, t_month, nth, target_weekday)
+
+            # If in the past and prefix is "今月" or omitted, move to next month
+            if target_date.date() < now.date() and (prefix == "今月" or not prefix):
+                t_year, t_month = get_target_year_month(now.year, now.month, 1)
+                target_date = calculate_nth_weekday(
+                    t_year, t_month, nth, target_weekday
+                )
+
+            return target_date
+        except ValueError:
+            raise typer.BadParameter(
+                get_msg("err_invalid_nth_weekday", nth, weekday_char)
+            )
+
+    # Parse specific-date expressions (e.g. "2026-05-25", "2026/5/25 15時", "5/25", "12/3 15:30")
+    date_match = re.fullmatch(
+        r"^(?:(?P<year>\d{4})[/\-年](?:の)?)?(?P<month>\d{1,2})[/\-月](?P<day>\d{1,2})日?(?:\s*(?:(?P<hour>\d+)時(?:(?P<minute>\d+)分)?|(?P<hour_colon>\d+):(?P<minute_colon>\d+)))?$",
+        normalized,
+    )
+    if date_match:
+        m = int(date_match.group("month"))
+        d = int(date_match.group("day"))
+        year_str = date_match.group("year")
+
+        # Parse time (default: 08:00)
+        h = 8
+        minute_val = 0
+
+        # If a time is explicitly specified
+        if date_match.group("hour") is not None:
+            h = int(date_match.group("hour"))
+            minute_val = (
+                int(date_match.group("minute"))
+                if date_match.group("minute") is not None
+                else 0
+            )
+        elif date_match.group("hour_colon") is not None:
+            h = int(date_match.group("hour_colon"))
+            minute_val = int(date_match.group("minute_colon"))
+
+        if (
+            not (1 <= m <= 12)
+            or not (1 <= d <= 31)
+            or not (0 <= h < 24)
+            or not (0 <= minute_val < 60)
+        ):
+            raise typer.BadParameter(get_msg("err_date_range"))
+
+        if year_str is not None:
+            # Explicit year was provided
+            t_year = int(year_str)
+            try:
+                target_date = datetime(t_year, m, d, h, minute_val, 0)
+            except ValueError:
+                raise typer.BadParameter(
+                    get_msg("err_date_not_exist", f"{t_year}-{m:02d}-{d:02d}")
+                )
+        else:
+            # If year is omitted, use this year (or next year if already past)
+            t_year = now.year
+            try:
+                target_date = datetime(t_year, m, d, h, minute_val, 0)
+            except ValueError:
+                raise typer.BadParameter(
+                    get_msg("err_date_not_exist", f"{m:02d}-{d:02d}")
+                )
+
+            # Move to next year if the date is already in the past
+            if target_date.date() < now.date():
+                try:
+                    target_date = datetime(t_year + 1, m, d, h, minute_val, 0)
+                except ValueError:
+                    raise typer.BadParameter(
+                        get_msg("err_date_not_exist", f"{m:02d}-{d:02d}")
+                    )
+
+        return target_date
+
     match = re.fullmatch(r"(\d+)([dh日])", normalized)
     if not match:
-        raise typer.BadParameter("期限は '3d' / '2h' の形式で指定してください。")
+        raise typer.BadParameter(get_msg("err_date_format"))
     amount = int(match.group(1))
     unit = match.group(2)
     if unit == "d":
-        return (now + timedelta(days=amount)).replace(hour=8, minute=0, second=0, microsecond=0)
+        return (now + timedelta(days=amount)).replace(
+            hour=8, minute=0, second=0, microsecond=0
+        )
     if unit == "h":
         return now + timedelta(hours=amount)
     return now
@@ -55,96 +823,851 @@ def calc_due_date(due: str) -> datetime:
 @app.command()
 def add(due: str, task: str):
     """
-    タスクを追加する
+    Add a task.
 
-    指定例:
-      later.py add "3d" "レポート提出" ... Add 3 days task
-      later.py add "10h" "打ち合わせ" ... 10 hours task
-      later.py add "明日" "明日のタスク" ... Add tomorrow 8am task
-      later.py add "明後日" "明後日のタスク" ... Add the day after tomorrow 8am task
-      later.py add "来週" "来週のタスク" ... Add next week 8am task
-      later.py add now "今すぐやるタスク" ... Add now task
-      later.py add 今 "今すぐやるタスク" ... Add now task
+    Examples:
+      later add 3d "レポート提出" ... add task due in 3 days (default time is 8:00 AM)
+      later add 10h "打ち合わせ" ... add task due in 10 hours
+      later add now "今すぐやるタスク" ... add task due now
+      later add "3/10 15:30" "特定の日のタスク" ... add task due on March 10 at 15:30 (this year or next year if date has passed)
+      later add 明日 "明日のタスク" ... task due tomorrow morning
+      later add 明日10時 "明日10時のタスク" ... task due tomorrow at 10:00
+      later add 明後日 "明後日のタスク" ... task due the morning of the day after tomorrow
+      later add 来週 "来週のタスク" ... task due next Monday morning
+      later add 今 "今すぐやるタスク" ... task due immediately
+      later add 20時 "今日の20時のタスク" ... task due today at 20:00
+      later add 来週月曜 "レポート提出" ... task due next Monday morning
+      later add 水曜日" "ゴミ出し" ... task due next Wednesday morning
+      later add 来月第二月曜 "月次報告" ... task due on the second Monday of next month
     """
     tasks = load_tasks()
     notify_at = calc_due_date(due)
     notify_at_s = notify_at.strftime("%Y-%m-%d %H:%M:%S")
-    # 既存の date キーは維持しつつ、時刻付き情報を notify_at に保存
-    tasks.append({"date": notify_at_s, "task": task})
+    tasks.append({"date": notify_at_s, "task": task, "status": "todo"})
     save_tasks(tasks)
-    print(f"タスクを追加しました: {task} (通知日時: {notify_at_s})")
+
+    # Find the inserted task position after sorting
+    sorted_tasks = load_tasks()
+    added_idx = len(sorted_tasks)
+    for idx, t in enumerate(sorted_tasks, start=1):
+        if t["date"] == notify_at_s and t["task"] == task:
+            added_idx = idx
+            break
+
+    # Build a table showing the successfully added task
+    added_table = Table(
+        title=get_msg("added_title"),
+        box=box.ROUNDED,
+        show_header=True,
+        header_style="bold magenta",
+    )
+    added_table.add_column(get_msg("col_pos"), justify="center")
+    added_table.add_column(get_msg("col_task"), style="cyan")
+    added_table.add_column(get_msg("col_due"), style="green")
+
+    added_table.add_row(f"[bold green]{added_idx}[/]", task, notify_at_s)
+    console.print(added_table)
 
 
 @app.command("a")
 def add_short(due: str, task: str):
-    """タスク追加の簡易コマンド (例: later.py a "3d" "レポート提出")"""
+    """alias for `add` command"""
     add(due, task)
 
 
-def show_tasks(tasks: list[dict], title: str):
-    """タスクのリストを表形式で表示する"""
-    if len(tasks) == 0:
-        # タスクがない場合はメッセージを表示して終了
-        console.print("- [bold green]later:[/bold green] [blue]タスクはありません。[/blue]")
-        return
-    table = Table(title=title, show_lines=False)
-    table.add_column("番号", justify="right")
-    table.add_column("タスク", style="red")
-    table.add_column("期限", style="green")
+def get_countdown_str(date_str: str) -> str:
+    """Return a human-readable countdown string until the due date."""
+    try:
+        notify_at = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        return get_msg("unknown")
+    now = datetime.now()
+    delta = notify_at - now
+    if delta.total_seconds() > 0:
+        days = delta.days
+        hours, remainder = divmod(delta.seconds, 3600)
+        minutes, _ = divmod(remainder, 60)
+
+        parts = []
+        if days > 0:
+            parts.append(f"{days}{get_msg('unit_d')}")
+        if hours > 0:
+            parts.append(f"{hours}{get_msg('unit_h')}")
+        if minutes > 0:
+            parts.append(f"{minutes}{get_msg('unit_m')}")
+
+        if not parts:
+            return get_msg("soon")
+        return "".join(parts)
+    else:
+        overdue_delta = now - notify_at
+        days = overdue_delta.days
+        hours, remainder = divmod(overdue_delta.seconds, 3600)
+        minutes, _ = divmod(remainder, 60)
+
+        parts = []
+        if days > 0:
+            parts.append(f"{days}{get_msg('unit_d')}")
+        if hours > 0:
+            parts.append(f"{hours}{get_msg('unit_h')}")
+        if minutes > 0:
+            parts.append(f"{minutes}{get_msg('unit_m')}")
+
+        if not parts:
+            return get_msg("overdue")
+        return get_msg("overdue_ago", "".join(parts))
+
+
+def strip_markup(text: str) -> str:
+    """Strip Rich markup tags from a string."""
+    return re.sub(r"\[.*?\]", "", text)
+
+
+def show_tasks(
+    tasks: list[dict],
+    title: str,
+    target: LIST_TARGETS = "all",
+    format: FORMAT_TYPES = "text",
+):
+    """Display the task list in the specified format."""
+    now = datetime.now()
+    filtered_tasks = []
+
     for idx, task in enumerate(tasks, start=1):
-        table.add_row(f"{idx}", task["task"], task["date"])
+        try:
+            notify_at = datetime.strptime(task["date"], "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            notify_at = None
+
+        keep = False
+        if target == "all":
+            keep = True
+        elif target == "due":
+            if notify_at and notify_at <= now:
+                keep = True
+        elif target == "week":
+            if notify_at and notify_at <= now + timedelta(days=7):
+                keep = True
+        elif target == "month":
+            if notify_at and notify_at <= now + timedelta(days=30):
+                keep = True
+        elif target == "todo":
+            if task.get("status") != "done":
+                keep = True
+        elif target == "done":
+            if task.get("status") == "done":
+                keep = True
+
+        if keep:
+            filtered_tasks.append((idx, task))
+
+    if format == "json":
+        output_tasks = []
+        for original_idx, task in filtered_tasks:
+            countdown = strip_markup(get_countdown_str(task["date"]))
+            output_tasks.append({
+                "no": original_idx,
+                "guid": task.get("guid", ""),
+                "task": task["task"],
+                "due": task["date"],
+                "remaining": countdown,
+                "status": "done" if task.get("status") == "done" else "todo",
+            })
+        print(json.dumps(output_tasks, indent=2, ensure_ascii=False))
+        return
+
+    if format == "csv":
+        import csv
+        import sys
+
+        writer = csv.writer(sys.stdout, lineterminator="\n")
+        writer.writerow(["no", "guid", "task", "due", "remaining", "status"])
+        for original_idx, task in filtered_tasks:
+            countdown = strip_markup(get_countdown_str(task["date"]))
+            status = "done" if task.get("status") == "done" else "todo"
+            writer.writerow([
+                original_idx,
+                task.get("guid", ""),
+                task["task"],
+                task["date"],
+                countdown,
+                status,
+            ])
+        return
+
+    if len(filtered_tasks) == 0:
+        console.print(get_msg("no_tasks"))
+        return
+
+    table = Table(title=title, show_lines=False, box=box.ROUNDED)
+    table.add_column(get_msg("col_no"), justify="right")
+    table.add_column(get_msg("col_task"))
+    table.add_column(get_msg("col_due"), style="green")
+    table.add_column(get_msg("col_remaining"), style="cyan")
+    table.add_column(get_msg("col_status"), justify="center")
+
+    raw_data = load_raw_data()
+    lang = raw_data.get("language", "en")
+    datetime_fmt = raw_data.get("datetime_format")
+
+    # Portable weekday names
+    WEEKDAYS_JA = ["月", "火", "水", "木", "金", "土", "日"]
+    WEEKDAYS_EN = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+    for original_idx, task in filtered_tasks:
+        try:
+            notify_at = datetime.strptime(task["date"], "%Y-%m-%d %H:%M:%S")
+            is_overdue = task.get("status") != "done" and notify_at <= now
+
+            if datetime_fmt:
+                date_display = notify_at.strftime(datetime_fmt)
+            else:
+                # Default format with portable weekday: e.g., 03/01水03:33
+                w_idx = notify_at.weekday()
+                w_str = WEEKDAYS_JA[w_idx] if lang == "ja" else WEEKDAYS_EN[w_idx]
+                date_display = (
+                    f"{notify_at.strftime('%m/%d')}{w_str}{notify_at.strftime('%H:%M')}"
+                )
+        except ValueError:
+            is_overdue = False
+            date_display = task["date"]
+
+        task_style = "red" if is_overdue else "bright_white"
+        task_content = f"[{task_style}]{task['task']}[/]"
+
+        countdown = get_countdown_str(task["date"])
+        status_key = "status_done" if task.get("status") == "done" else "status_todo"
+        status_str = get_msg(status_key)
+        table.add_row(
+            f"{original_idx}", task_content, date_display, countdown, status_str
+        )
     console.print(table)
 
 
-@app.command()
-def show():
-    """保存されたタスクを表示する"""
+
+@app.command("list")
+def show_alias(
+    target: LIST_TARGETS = "all",
+    format: FORMAT_TYPES = typer.Option("text", "--format", help="Output format (text, csv, json)"),
+):
+    """Show the task list."""
     tasks = load_tasks()
-    show_tasks(tasks, "■ 保存したタスク一覧")
+    show_tasks(tasks, get_msg("list_title"), target, format)
+
+
+@app.command("ls")
+def list_alias(
+    target: LIST_TARGETS = "all",
+    format: FORMAT_TYPES = typer.Option("text", "--format", help="Output format (text, csv, json)"),
+):
+    """alias for `list` command"""
+    tasks = load_tasks()
+    show_tasks(tasks, get_msg("list_title"), target, format)
+
+
+@app.command()
+def show(
+    target: LIST_TARGETS = "all",
+    format: FORMAT_TYPES = typer.Option("text", "--format", help="Output format (text, csv, json)"),
+):
+    """alias for `list` command"""
+    tasks = load_tasks()
+    show_tasks(tasks, get_msg("list_title"), target, format)
+
+
+@app.command("ls-todo")
+def ls_todo(
+    format: FORMAT_TYPES = typer.Option("text", "--format", help="Output format (text, csv, json)"),
+):
+    """alias for `later list --target=todo` command"""
+    tasks = load_tasks()
+    show_tasks(tasks, get_msg("list_title"), target="todo", format=format)
+
 
 @app.command()
 def delete(number: int):
-    """番号を指定してタスクを削除する (例: later.py delete 1)"""
+    """Delete a task by number (e.g. later delete 1)."""
     tasks = load_tasks()
     if number < 1 or number > len(tasks):
-        raise typer.BadParameter(f"番号は 1 から {len(tasks)} の範囲で指定してください。")
+        raise typer.BadParameter(get_msg("err_idx_range", len(tasks)))
     deleted_task = tasks.pop(number - 1)
     save_tasks(tasks)
-    print(f"タスクを削除しました: {deleted_task['task']}")
+    print(get_msg("deleted_task", deleted_task["task"]))
     show()
 
+
+@app.command("del")
+def delelete_alias(number: int):
+    """alias for `delete` command"""
+    delete(number)
+
+
 @app.command()
-def clear():
-    """期限が過ぎたタスクを一括削除する"""
+def clear(target: CLEAR_TARGETS = "overdue"):
+    """Bulk-delete tasks based on the selected target."""
     tasks = load_tasks()
     now = datetime.now()
-    tasks_due = []
-    for task in tasks:
-        notify_at = datetime.strptime(task["date"], "%Y-%m-%d %H:%M:%S")
-        remove_date = notify_at - timedelta(days=1)  # 期限が1日以上過ぎたもの
-        if remove_date > now:
-            tasks_due.append(task)
-    save_tasks(tasks_due)
-    print(f"期限が過ぎたタスクを削除しました。残りのタスク数: {len(tasks_due)}")
-    show()  # 更新後のタスクを表示
+    if target == "overdue":
+        if not typer.confirm(get_msg("clear_confirm"), default=True):
+            print(get_msg("cancelled"))
+            return
+        tasks_due = []
+        for task in tasks:
+            notify_at = datetime.strptime(task["date"], "%Y-%m-%d %H:%M:%S")
+            remove_date = notify_at - timedelta(
+                days=1
+            )  # Remove tasks overdue by at least one day
+            if remove_date > now:
+                tasks_due.append(task)
+        save_tasks(tasks_due)
+        print(get_msg("clear_done", len(tasks_due)))
+    elif target == "done":
+        if not typer.confirm(get_msg("clear_confirm_done"), default=True):
+            print(get_msg("cancelled"))
+            return
+        tasks_remaining = [t for t in tasks if t.get("status") != "done"]
+        save_tasks(tasks_remaining)
+        print(get_msg("clear_done", len(tasks_remaining)))
+    elif target == "all":
+        if not typer.confirm(get_msg("clear_confirm_all"), default=True):
+            print(get_msg("cancelled"))
+            return
+        save_tasks([])
+        print(get_msg("clear_done", 0))
+    # Show tasks after update
+    show()
+
 
 @app.command()
 def check():
-    """期限が来たタスクを表示する"""
+    """Show tasks whose due time has arrived."""
+    tasks = load_tasks()
+    show_tasks(tasks, get_msg("due_tasks_title"), target="due")
+
+
+@app.command("c")
+def check_alias():
+    """alias for `check` command"""
+    check()
+
+
+def show_cal(days: int = 7):
+    """Display scheduled tasks in calendar format."""
+    title = (
+        get_msg("cal_title_weekly") if days == 7 else get_msg("cal_title_days", days)
+    )
     tasks = load_tasks()
     now = datetime.now()
-    tasks_due = []
+
+    # Map tasks by date
+    from collections import defaultdict
+
+    day_tasks = defaultdict(list)
     for task in tasks:
-        notify_at = datetime.strptime(task["date"], "%Y-%m-%d %H:%M:%S")
-        if notify_at <= now:
-            tasks_due.append(task)
-    show_tasks(tasks_due, "■ 期限が来たタスク")
+        try:
+            t_date = datetime.strptime(task["date"], "%Y-%m-%d %H:%M:%S").date()
+            day_tasks[t_date].append(task["task"])
+        except ValueError:
+            continue
+
+    # Build table columns with headers and borders
+    table = Table(
+        title=title,
+        show_header=True,
+        show_lines=False,
+    )
+    table.add_column(get_msg("col_date"), justify="center", style="bold")
+    table.add_column(get_msg("col_offset"), justify="center")
+    table.add_column(get_msg("col_task"), style="cyan")
+
+    for i in range(days):
+        target_date = (now + timedelta(days=i)).date()
+        date_str = target_date.strftime("%m/%d")
+
+        if i == 0:
+            rel_str = get_msg("cal_today")
+            color = "bold magenta"
+        elif i == 1:
+            rel_str = get_msg("cal_tomorrow")
+            color = "bold green"
+        else:
+            rel_str = f"+{i}d"
+            color = "cyan"
+
+        tasks_list = day_tasks[target_date]
+        tasks_str = ", ".join(tasks_list) if tasks_list else "-"
+
+        table.add_row(
+            f"[{color}]{date_str}[/]",
+            f"[{color}]{rel_str}[/]",
+            f"[{color}]{tasks_str}[/]",
+        )
+
+    console.print(table)
+
+
+@app.command("cal")
+def cal(d: int = 7):
+    """Show calendar view; use cal --d 10 to specify a custom range."""
+    show_cal(d)
+
+
+@app.command("cal30")
+def cal30():
+    """Show a 30-day calendar view (same as cal --d 30)."""
+    show_cal(30)
+
 
 @app.command("info")
 def info():
-    """情報を表示"""
-    print("タスクは以下のファイルに保存されています:")
+    """Show information."""
+    print(get_msg("info_saved_in"))
     print(get_data_file())
+
+
+@app.command("language")
+def language_cmd(lang: str):
+    """
+    Change display language (en / ja).
+    """
+    normalized = lang.strip().lower()
+    if normalized not in ("en", "ja"):
+        raise typer.BadParameter(
+            "Language must be 'en' or 'ja'. (言語は 'en' または 'ja' を指定してください。)"
+        )
+
+    from storage import set_language
+
+    set_language(normalized)
+
+    if normalized == "ja":
+        console.print("[green]表示言語を日本語(ja)に設定しました。[/green]")
+    else:
+        console.print("[green]Display language has been set to English(en).[/green]")
+
+
+@app.command()
+def done(number: int):
+    """
+    Mark a task as done (e.g. later done 1).
+    """
+    tasks = load_tasks()
+    if number < 1 or number > len(tasks):
+        raise typer.BadParameter(get_msg("err_idx_range", len(tasks)))
+
+    tasks[number - 1]["status"] = "done"
+    save_tasks(tasks)
+    console.print(get_msg("marked_done", tasks[number - 1]["task"]))
+    show()
+
+
+@app.command()
+def todo(number: int):
+    """
+    Mark a task as todo (e.g. later todo 1).
+    """
+    tasks = load_tasks()
+    if number < 1 or number > len(tasks):
+        raise typer.BadParameter(get_msg("err_idx_range", len(tasks)))
+
+    tasks[number - 1]["status"] = "todo"
+    save_tasks(tasks)
+    console.print(get_msg("marked_todo", tasks[number - 1]["task"]))
+    show()
+
+
+def parse_offset(offset_str: str) -> timedelta:
+    """Parse an offset expression (e.g. '7d', '2h', '30m', '1w') and return a timedelta."""
+    normalized = offset_str.strip().lower()
+    match = re.fullmatch(r"^(\d+)([dhmw日分時週]|週間)$", normalized)
+    if not match:
+        raise typer.BadParameter(get_msg("err_date_format"))
+    amount = int(match.group(1))
+    unit = match.group(2)
+    if unit in ("d", "日"):
+        return timedelta(days=amount)
+    if unit in ("w", "週", "週間"):
+        return timedelta(weeks=amount)
+    if unit in ("h", "時"):
+        return timedelta(hours=amount)
+    if unit in ("m", "分"):
+        return timedelta(minutes=amount)
+    raise typer.BadParameter(get_msg("err_date_format"))
+
+
+@app.command()
+def renew(number: int, offset: str):
+    """
+    Extend the due date of a task by a specified offset (e.g. 7d, 2h) or set to a specific date (e.g. 6/1, tomorrow).
+    """
+    tasks = load_tasks()
+    if number < 1 or number > len(tasks):
+        raise typer.BadParameter(get_msg("err_idx_range", len(tasks)))
+
+    task = tasks[number - 1]
+    try:
+        current_due = datetime.strptime(task["date"], "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        raise typer.BadParameter(get_msg("err_date_range"))
+
+    try:
+        # Try parsing as a relative offset first
+        delta = parse_offset(offset)
+        new_due = current_due + delta
+    except typer.BadParameter:
+        # If it's not a relative offset, try parsing as an absolute or relative target date
+        try:
+            new_due = calc_due_date(offset)
+        except typer.BadParameter:
+            raise typer.BadParameter(get_msg("err_date_format"))
+
+    # Update date and save
+    task["date"] = new_due.strftime("%Y-%m-%d %H:%M:%S")
+    save_tasks(tasks)
+
+    console.print(get_msg("renewed_task", task["task"], task["date"]))
+    show()
+
+
+@app.command("set")
+def set_config(key: str, value: str):
+    """
+    Set a configuration key to a specified value in tasks.json.
+    """
+    if key == "tasks":
+        raise typer.BadParameter("Cannot set reserved key 'tasks'.")
+
+    data = load_raw_data()
+
+    # Try to parse the value as JSON (e.g. true, false, numbers)
+    try:
+        parsed_value = json.loads(value)
+    except Exception:
+        # Fallback to string if parsing fails
+        parsed_value = value
+
+    data[key] = parsed_value
+    save_raw_data(data)
+
+    console.print(get_msg("set_success", key, str(parsed_value)))
+
+
+def get_api_url(endpoint: str, method: str) -> str:
+    """
+    Construct API URL by ensuring correct combining of api.php?method=xxx
+    """
+    base = endpoint.split("?")[0]
+    if "api.php" in base:
+        return f"{base}?method={method}"
+    else:
+        return f"{base.rstrip('/')}/api.php?method={method}"
+
+
+@sync_app.callback(invoke_without_command=True)
+def sync(ctx: typer.Context):
+    """
+    Synchronize local events with the remote Web API.
+    """
+    if ctx.invoked_subcommand is not None:
+        return
+    import urllib.request
+    import urllib.error
+    import sqlite3
+
+    raw_data = load_raw_data()
+    api_endpoint = raw_data.get("api_endpoint")
+    api_key = raw_data.get("api_key")
+    last_sync = raw_data.get("api_updated_at", "")
+
+    if not api_endpoint or not api_key:
+        console.print("[red]Error: api_endpoint or api_key is not configured.[/red]")
+        console.print(
+            "Please set them using: [cyan]later set api_endpoint <url>[/cyan] and [cyan]later set api_key <key>[/cyan]"
+        )
+        raise typer.Exit(code=1)
+
+    # API key format validation: laterapi::xxx::xxxx
+    parts = api_key.split("::")
+    if len(parts) != 3 or parts[0] != "laterapi" or not parts[1] or not parts[2]:
+        console.print("[red]Error: Invalid API Key format.[/red]")
+        console.print(
+            "Please obtain a valid API key (format: [cyan]laterapi::xxx::xxxx[/cyan])."
+        )
+        raise typer.Exit(code=1)
+
+    db_path = get_db_file()
+
+    # 1. Collect unsynced local events
+    if not os.path.exists(db_path):
+        local_events = []
+    else:
+        conn = sqlite3.connect(db_path)
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='events'"
+            )
+            if not cursor.fetchone():
+                local_events = []
+            else:
+                cursor.execute(
+                    "SELECT event_id, task_id, json_str, timestamp FROM events ORDER BY event_id ASC"
+                )
+                local_events_rows = cursor.fetchall()
+                local_events = []
+                for row in local_events_rows:
+                    try:
+                        ev = json.loads(row[2])
+                        ev["event_id"] = row[0]
+                        local_events.append(ev)
+                    except Exception:
+                        continue
+        finally:
+            conn.close()
+
+    post_url = get_api_url(api_endpoint, "post")
+    get_url = get_api_url(api_endpoint, "get")
+
+    # Step 1: Record local events if any
+    if local_events:
+        post_payload = {
+            "events": [
+                {k: v for k, v in ev.items() if k != "event_id"} for ev in local_events
+            ]
+        }
+
+        req_post = urllib.request.Request(
+            post_url,
+            data=json.dumps(post_payload, ensure_ascii=False).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "X-API-KEY": api_key,
+                "Authorization": f"Bearer {api_key}",
+            },
+            method="POST",
+        )
+
+        try:
+            with urllib.request.urlopen(req_post) as res:
+                res_content = res.read().decode("utf-8")
+                try:
+                    res_data = json.loads(res_content)
+                except Exception:
+                    res_data = {}
+        except urllib.error.HTTPError as e:
+            try:
+                err_content = e.read().decode("utf-8")
+                err_data = json.loads(err_content)
+                err_msg = err_data.get("error", err_data.get("message", e.reason))
+            except Exception:
+                err_msg = e.reason
+
+            if e.code in (401, 403):
+                console.print(
+                    f"[red]Sync (Post) failed: Authentication error. Please set a valid API key. ({err_msg})[/red]"
+                )
+            else:
+                console.print(
+                    f"[red]Sync (Post) failed: HTTP error {e.code} ({err_msg})[/red]"
+                )
+            raise typer.Exit(code=1)
+        except urllib.error.URLError as e:
+            console.print(
+                f"[red]Sync (Post) failed: HTTP connection error ({e.reason})[/red]"
+            )
+            raise typer.Exit(code=1)
+        except Exception as e:
+            console.print(f"[red]Sync (Post) failed: {str(e)}[/red]")
+            raise typer.Exit(code=1)
+
+        # Optional: Check if response has status and is not success
+        if (
+            isinstance(res_data, dict)
+            and "status" in res_data
+            and res_data["status"] != "success"
+        ):
+            console.print(
+                f"[red]Sync (Post) failed: Server returned non-success status ({res_data.get('status')})[/red]"
+            )
+            raise typer.Exit(code=1)
+
+        # Archive local events
+        conn = sqlite3.connect(db_path)
+        try:
+            cursor = conn.cursor()
+            for ev in local_events:
+                event_id = ev["event_id"]
+                task_id = ev["guid"]
+                json_str = json.dumps(
+                    {k: v for k, v in ev.items() if k != "event_id"},
+                    ensure_ascii=False,
+                )
+                timestamp = ev["timestamp"]
+
+                cursor.execute(
+                    "INSERT INTO events_logs (event_id, task_id, json_str, timestamp) VALUES (?, ?, ?, ?)",
+                    (event_id, task_id, json_str, timestamp),
+                )
+                cursor.execute("DELETE FROM events WHERE event_id = ?", (event_id,))
+            conn.commit()
+        finally:
+            conn.close()
+
+    # Step 2: Fetch events from API
+    date_from = last_sync if last_sync else "2000-01-01 00:00:00"
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    date_to = now_str
+
+    get_payload = {"date_from": date_from, "date_to": date_to}
+
+    req_get = urllib.request.Request(
+        get_url,
+        data=json.dumps(get_payload, ensure_ascii=False).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "X-API-KEY": api_key,
+            "Authorization": f"Bearer {api_key}",
+        },
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(req_get) as res:
+            res_content = res.read().decode("utf-8")
+            res_data = json.loads(res_content)
+    except urllib.error.HTTPError as e:
+        try:
+            err_content = e.read().decode("utf-8")
+            err_data = json.loads(err_content)
+            err_msg = err_data.get("error", err_data.get("message", e.reason))
+        except Exception:
+            err_msg = e.reason
+
+        if e.code in (401, 403):
+            console.print(
+                f"[red]Sync (Get) failed: Authentication error. Please set a valid API key. ({err_msg})[/red]"
+            )
+        else:
+            console.print(
+                f"[red]Sync (Get) failed: HTTP error {e.code} ({err_msg})[/red]"
+            )
+        raise typer.Exit(code=1)
+    except urllib.error.URLError as e:
+        console.print(
+            f"[red]Sync (Get) failed: HTTP connection error ({e.reason})[/red]"
+        )
+        raise typer.Exit(code=1)
+    except Exception as e:
+        console.print(f"[red]Sync (Get) failed: {str(e)}[/red]")
+        raise typer.Exit(code=1)
+
+    # API key invalid check or general error
+    if isinstance(res_data, dict) and "error" in res_data:
+        console.print(f"[red]Sync (Get) failed: {res_data['error']}[/red]")
+        raise typer.Exit(code=1)
+
+    if isinstance(res_data, list):
+        server_events = res_data
+    elif isinstance(res_data, dict):
+        server_events = res_data.get("events", [])
+    else:
+        server_events = []
+
+    restore_tasks_from_events(server_events)
+
+    # 3. Update sync timestamp in config
+    raw_data = load_raw_data()
+    raw_data["api_updated_at"] = date_to
+    save_raw_data(raw_data)
+
+    console.print(
+        f"[green]Synchronization completed successfully! (Applied {len(server_events)} server changes)[/green]"
+    )
+    show()
+
+
+@sync_app.command("hello")
+def hello():
+    """
+    Test API connection and authentication using method=hello.
+    """
+    import urllib.request
+    import urllib.error
+
+    raw_data = load_raw_data()
+    api_endpoint = raw_data.get("api_endpoint")
+    api_key = raw_data.get("api_key")
+
+    if not api_endpoint or not api_key:
+        console.print("[red]Error: api_endpoint or api_key is not configured.[/red]")
+        console.print(
+            "Please set them using: [cyan]later set api_endpoint <url>[/cyan] and [cyan]later set api_key <key>[/cyan]"
+        )
+        raise typer.Exit(code=1)
+
+    # API key format validation: laterapi::xxx::xxxx
+    parts = api_key.split("::")
+    if len(parts) != 3 or parts[0] != "laterapi" or not parts[1] or not parts[2]:
+        console.print("[red]Error: Invalid API Key format.[/red]")
+        console.print(
+            "Please obtain a valid API key (format: [cyan]laterapi::xxx::xxxx[/cyan])."
+        )
+        raise typer.Exit(code=1)
+
+    hello_url = get_api_url(api_endpoint, "hello")
+
+    payload = {"message": "Hello, Later API!"}
+
+    req = urllib.request.Request(
+        hello_url,
+        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "X-API-KEY": api_key,
+            "Authorization": f"Bearer {api_key}",
+        },
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(req) as res:
+            res_content = res.read().decode("utf-8")
+            res_data = json.loads(res_content)
+    except urllib.error.HTTPError as e:
+        try:
+            err_content = e.read().decode("utf-8")
+            err_data = json.loads(err_content)
+            err_msg = err_data.get("error", err_data.get("message", e.reason))
+        except Exception:
+            err_msg = e.reason
+
+        if e.code in (401, 403):
+            console.print(
+                f"[red]Authentication failed: Invalid API Key. ({err_msg})[/red]"
+            )
+        else:
+            console.print(
+                f"[red]API Test failed: HTTP error ({e.code}) ({err_msg})[/red]"
+            )
+        raise typer.Exit(code=1)
+    except urllib.error.URLError as e:
+        console.print(f"[red]API Test failed: HTTP connection error ({e.reason})[/red]")
+        raise typer.Exit(code=1)
+    except Exception as e:
+        console.print(f"[red]API Test failed: {str(e)}[/red]")
+        raise typer.Exit(code=1)
+
+    if isinstance(res_data, dict) and res_data.get("message") == "Hello, Later API!":
+        console.print(
+            "[green]API Authentication successful! Response received:[/green]"
+        )
+        console.print(f"Message: {res_data.get('message')}")
+    else:
+        console.print(
+            "[red]API Test failed: Invalid response received from server.[/red]"
+        )
+        raise typer.Exit(code=1)
+
 
 if __name__ == "__main__":
     app()
