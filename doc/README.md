@@ -121,39 +121,3 @@ To mark a completed task back to "todo" (incomplete), use the `todo` command fol
 ```sh
 later todo 1  # Marks the 1st task as todo
 ```
-
-## 9. API Synchronization (sync)
-
-You can synchronize your tasks between multiple devices or back them up to a remote server. Running synchronization pushes your local event logs (such as task creation, deletion, or status updates) to the API and pulls the latest remote events to update your local tasks.
-
-### Synchronization Configuration
-
-To configure synchronization, you need to set the API endpoint URL and your API key in the configuration metadata of `tasks.json` using the `set` command:
-
-```sh
-# Set the remote API endpoint URL
-later set api_endpoint "https://example.com"
-
-# Set your API key (must follow format: laterapi::xxx::xxxx)
-later set api_key "laterapi::your_api_key_here"
-```
-
-### Connection & Authentication Test (sync hello)
-
-You can test if your remote endpoint and API key are configured correctly by running the `sync hello` command:
-
-```sh
-later sync hello
-```
-
-If successful, a connection success message along with the response message from the server will be displayed. If a connection error or authentication failure occurs, the detailed reasons will be displayed.
-
-### Performing Synchronization (sync)
-
-To run actual bi-directional synchronization, execute the `sync` command:
-
-```sh
-later sync
-```
-
-This will record unsynced local events to the remote server, fetch remote changes since your last synchronization, apply those remote events to your local task file, and record the successful synchronization timestamp.

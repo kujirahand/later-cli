@@ -103,10 +103,6 @@ uv run later check
 `set` コマンドを使って `tasks.json` の設定値を変更できます。
 
 ```bash
-# APIエンドポイントとAPIキーの設定
-later set api_endpoint "https://example.com"
-later set api_key "laterapi::your::key"
-
 # 日時の表示フォーマットをカスタマイズ
 later set datetime_format "%Y/%m/%d %H:%M"
 ```
@@ -173,49 +169,6 @@ later renew 1 "6/1"
 ```
 
 日付を直接指定する場合、上記で設定した `datetime_in_format` や `date_in_format` のカスタム形式もそのまま使用できます。
-
-## Web APIとの同期機能 (sync)
-
-`later-cli` は、複数のデバイス間での双方向タスク同期や、リモートのWeb APIサーバー`later-api`へのタスクデータのバックアップに対応しています。同期を実行すると、ローカルで行った変更履歴（タスクの追加、削除、完了/未完了状態の変更イベント）がリモートサーバーに送信され、同時にサーバー上の最新イベントを受信してローカルのデータベースに適用します。
-
-### 1.APIキーを発行
-
-[later-api](https://later-api.aoikujira.com/)にサインアップして、APIキーを発行してください。
-APIキーは発行時のみ表示されるので、必ず控えておいてください。
-
-### 2.later-cliにAPIキーを登録
-
-ターミナルで以下のコマンドを実行して、APIエンドポイントURLとAPIキーを登録してください。APIキーは `laterapi::xxx::xxxxxxx` のような形式の文字列です。
-
-```sh
-# APIエンドポイントとAPIキーの設定
-later set api_endpoint https://later-api.aoikujira.com/
-later set api_key "ここに発行したAPIキーを入力してください"
-```
-
-なお、以下でWebサービスのソースコードを公開していますので、これを利用して独自の同期サーバーを構築することも可能です。
-
-- [later-apiのリポジトリ](https://github.com/kujirahand/later-api)
-
-### 接続・認証テスト (sync hello)
-
-設定したAPIエンドポイントとAPIキーが正しく機能しているかを確認するために、`sync hello` 疎通テストコマンドを実行できます。
-
-```bash
-later sync hello
-```
-
-疎通に成功すると、接続成功の旨とサーバーからの応答メッセージが表示されます。APIキーが無効である場合や、通信エラーが発生した場合は、エラーの詳細な原因（Bearerトークンが無効であるか欠落しているか、あるいはネットワークエラーかなど）が表示されます。
-
-### タスクの同期 (sync)
-
-実際に双方向のタスク同期を行うには、`sync` コマンドを実行します。
-
-```bash
-later sync
-```
-
-このコマンドを実行すると、未同期のローカルイベントが自動的にサーバーに送信（プッシュ）され、サーバー側の最新の変更イベントが取得（プル）されてローカルタスクに適用されます。また、同期成功時のタイムスタンプ (`api_updated_at`) が更新されます。
 
 ## より詳細なガイド
 

@@ -744,12 +744,12 @@ def test_set_config_command(invoke, taskfile):
     data = json.loads(taskfile.read_text(encoding="utf-8"))
     assert data["language"] == "ja"
 
-    # 2. 真偽値キーの設定 (sync_enabled -> true)
-    result = invoke("set", "sync_enabled", "true")
+    # 2. 真偽値キーの設定 (notifications_enabled -> true)
+    result = invoke("set", "notifications_enabled", "true")
     assert result.exit_code == 0
 
     data = json.loads(taskfile.read_text(encoding="utf-8"))
-    assert data["sync_enabled"] is True
+    assert data["notifications_enabled"] is True
 
     # 3. 数値キーの設定 (port -> 8080)
     result = invoke("set", "port", "8080")
@@ -762,112 +762,6 @@ def test_set_config_command(invoke, taskfile):
     result = invoke("set", "tasks", "[]")
     assert result.exit_code != 0
     assert "reserved" in result.output or "Cannot set" in result.output
-
-
-def test_sqlite_event_logging_and_restoration(invoke, taskfile):
-    from storage import (
-        set_data_file,
-        get_db_file,
-        restore_tasks_from_events,
-        load_tasks,
-        save_tasks,
-    )
-    import sqlite3
-    import json
-    import os
-
-    set_data_file(taskfile)
-    db_path = get_db_file()
-
-    # Ensure clean state: remove existing events.db if any
-    if os.path.exists(db_path):
-        os.remove(db_path)
-
-    # 1. Add Task -> Verify "add" event logged
-    result = invoke("add", "tomorrow", "SQLite同期テストタスク")
-    assert result.exit_code == 0
-    assert os.path.exists(db_path)
-
-    conn = sqlite3.connect(db_path)
-    try:
-        cursor = conn.cursor()
-        cursor.execute("SELECT task_id, json_str FROM events")
-        rows = cursor.fetchall()
-        assert len(rows) == 1
-
-        event_data = json.loads(rows[0][1])
-        assert event_data["event"] == "add"
-        assert event_data["task"] == "SQLite同期テストタスク"
-        assert event_data["status"] == "todo"
-        task_guid = event_data["guid"]
-        assert rows[0][0] == task_guid
-    finally:
-        conn.close()
-
-    # 2. Update status (done) -> Verify "done" event logged
-    result = invoke("done", "1")
-    assert result.exit_code == 0
-
-    conn = sqlite3.connect(db_path)
-    try:
-        cursor = conn.cursor()
-        cursor.execute("SELECT json_str FROM events ORDER BY event_id ASC")
-        rows = cursor.fetchall()
-        assert len(rows) == 2
-
-        event_data = json.loads(rows[1][0])
-        assert event_data["event"] == "done"
-        assert event_data["guid"] == task_guid
-        assert event_data["status"] == "done"
-    finally:
-        conn.close()
-
-    # 3. Delete task -> Verify "delete" event logged
-    result = invoke("delete", "1")
-    assert result.exit_code == 0
-
-    conn = sqlite3.connect(db_path)
-    try:
-        cursor = conn.cursor()
-        cursor.execute("SELECT json_str FROM events ORDER BY event_id ASC")
-        rows = cursor.fetchall()
-        assert len(rows) == 3
-
-        event_data = json.loads(rows[2][0])
-        assert event_data["event"] == "delete"
-        assert event_data["guid"] == task_guid
-    finally:
-        conn.close()
-
-    # 4. Restoration test: Wipe tasks.json, restore using the logged events
-    # We will only apply the "add" and "done" events to reconstruct the task in "done" state,
-    # leaving out the final "delete" event.
-    conn = sqlite3.connect(db_path)
-    try:
-        cursor = conn.cursor()
-        cursor.execute("SELECT json_str FROM events ORDER BY event_id ASC")
-        rows = cursor.fetchall()
-        events = [json.loads(r[0]) for r in rows[:2]]  # Only "add" and "done" events
-    finally:
-        conn.close()
-
-    # Wipe the task file (empty tasks list)
-    save_tasks([])
-    assert len(load_tasks()) == 0
-
-    # Call restore logic to rebuild tasks from events stream
-    restore_tasks_from_events(events)
-
-    # Verify that the task has been reconstructed and is in "done" state
-    reconstructed_tasks = load_tasks()
-    assert len(reconstructed_tasks) == 1
-    assert reconstructed_tasks[0]["task"] == "SQLite同期テストタスク"
-    assert reconstructed_tasks[0]["guid"] == task_guid
-    assert reconstructed_tasks[0]["status"] == "done"
-
-    # Clean up DB after test
-    if os.path.exists(db_path):
-        os.remove(db_path)
 
 
 def test_datetime_format_customization(invoke, taskfile):
@@ -1075,4 +969,3 @@ def test_list_formats(invoke, taskfile):
     assert rows[2][2] == "タスクCSV_JSON2"
     assert rows[2][3] == "2026-06-02 15:00:00"
     assert rows[2][5] == "done"
-

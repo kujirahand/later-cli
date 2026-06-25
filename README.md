@@ -45,9 +45,9 @@ cd later-cli
 uv sync
 ```
 
-### Quick Usage
+### Quick Start
 
- short tutorial is available below.
+A short tutorial is available below.
 
 - [English guide](https://github.com/kujirahand/later-cli/tree/main/doc/README.md)
 - [Japanese guide](https://github.com/kujirahand/later-cli/tree/main/doc/README-ja.md)
@@ -59,12 +59,13 @@ Basic usage:
 later add 3d "Submit report"  
 # Check tasks
 later list
-# Done the first task
+# Mark the first task as done
 later done 1
-# Clear the done task
+# Delete all completed tasks
 later clear --target=done
-# Delete the done task
+# Check the task list again
 later list
+# Delete the first task
 later delete 1
 ```
 
@@ -102,10 +103,6 @@ Please type `later --help` to see the available commands and options.
 You can change values in `tasks.json` with the `set` command.
 
 ```bash
-# Configure API endpoint and API key
-later set api_endpoint "https://example.com"
-later set api_key "laterapi::your::key"
-
 # Customize date display format
 later set datetime_format "%Y/%m/%d %H:%M"
 ```
@@ -173,50 +170,6 @@ later renew 1 "6/1"
 ```
 
 When specifying a date directly, you can also use the custom formats configured above for `datetime_in_format` and `date_in_format`.
-
-## Synchronization with Web API (sync)
-
-`later-cli` supports bi-directional task synchronization across multiple devices and backup of task data to the remote Web API server `later-api`. When synchronization runs, your local change history (task creation, deletion, and complete/incomplete status change events) is sent to the remote server, while the latest events on the server are received and applied to your local database.
-
-### 1. Issue an API Key
-
-Sign up at [later-api](https://later-api.aoikujira.com/) and issue an API key.
-The API key is shown only once when it is issued, so be sure to save it.
-
-### 2. Register the API Key in later-cli
-
-Run the following commands in your terminal to register the API endpoint URL and API key.
-The API key must be a string in a format like `laterapi::xxx::xxxxxxx`.
-
-```sh
-# Set API endpoint and API key
-later set api_endpoint https://later-api.aoikujira.com/
-later set api_key "enter the issued API key here"
-```
-
-The source code of the Web service is available below, so you can also use it to build your own synchronization server.
-
-- [later-api repository](https://github.com/kujirahand/later-api)
-
-### Connection & Authentication Test (sync hello)
-
-You can verify that your remote endpoint and API key are configured correctly by executing the `sync hello` connection test command:
-
-```bash
-later sync hello
-```
-
-If successful, it will display a connection success message along with the response message from the server. If authentication fails, or if a connection error occurs, the detailed error reasons (such as missing/invalid Bearer tokens or network errors) will be clearly displayed.
-
-### Running Synchronization (sync)
-
-To perform actual bi-directional synchronization, execute the `sync` command:
-
-```bash
-later sync
-```
-
-This will automatically push any unsynced local events, pull remote events, apply those remote changes to your local tasks, and update your synchronization timestamp (`api_updated_at`).
 
 ## More Detailed Guide
 
