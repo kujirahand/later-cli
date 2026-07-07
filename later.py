@@ -42,7 +42,7 @@ LIST_TARGETS = Literal[
 # Define the type for output format
 FORMAT_TYPES = Literal[
     "text",  # Default text table format
-    "csv",   # CSV format
+    "csv",  # CSV format
     "json",  # JSON format
 ]
 
@@ -958,14 +958,16 @@ def show_tasks(
         output_tasks = []
         for original_idx, task in filtered_tasks:
             countdown = strip_markup(get_countdown_str(task["date"]))
-            output_tasks.append({
-                "no": original_idx,
-                "guid": task.get("guid", ""),
-                "task": task["task"],
-                "due": task["date"],
-                "remaining": countdown,
-                "status": "done" if task.get("status") == "done" else "todo",
-            })
+            output_tasks.append(
+                {
+                    "no": original_idx,
+                    "guid": task.get("guid", ""),
+                    "task": task["task"],
+                    "due": task["date"],
+                    "remaining": countdown,
+                    "status": "done" if task.get("status") == "done" else "todo",
+                }
+            )
         print(json.dumps(output_tasks, indent=2, ensure_ascii=False))
         return
 
@@ -978,14 +980,16 @@ def show_tasks(
         for original_idx, task in filtered_tasks:
             countdown = strip_markup(get_countdown_str(task["date"]))
             status = "done" if task.get("status") == "done" else "todo"
-            writer.writerow([
-                original_idx,
-                task.get("guid", ""),
-                task["task"],
-                task["date"],
-                countdown,
-                status,
-            ])
+            writer.writerow(
+                [
+                    original_idx,
+                    task.get("guid", ""),
+                    task["task"],
+                    task["date"],
+                    countdown,
+                    status,
+                ]
+            )
         return
 
     if len(filtered_tasks) == 0:
@@ -1037,11 +1041,12 @@ def show_tasks(
     console.print(table)
 
 
-
 @app.command("list")
 def show_alias(
     target: LIST_TARGETS = "all",
-    format: FORMAT_TYPES = typer.Option("text", "--format", help="Output format (text, csv, json)"),
+    format: FORMAT_TYPES = typer.Option(
+        "text", "--format", help="Output format (text, csv, json)"
+    ),
 ):
     """Show the task list."""
     tasks = load_tasks()
@@ -1051,7 +1056,9 @@ def show_alias(
 @app.command("ls")
 def list_alias(
     target: LIST_TARGETS = "all",
-    format: FORMAT_TYPES = typer.Option("text", "--format", help="Output format (text, csv, json)"),
+    format: FORMAT_TYPES = typer.Option(
+        "text", "--format", help="Output format (text, csv, json)"
+    ),
 ):
     """alias for `list` command"""
     tasks = load_tasks()
@@ -1061,7 +1068,9 @@ def list_alias(
 @app.command()
 def show(
     target: LIST_TARGETS = "all",
-    format: FORMAT_TYPES = typer.Option("text", "--format", help="Output format (text, csv, json)"),
+    format: FORMAT_TYPES = typer.Option(
+        "text", "--format", help="Output format (text, csv, json)"
+    ),
 ):
     """alias for `list` command"""
     tasks = load_tasks()
@@ -1070,7 +1079,9 @@ def show(
 
 @app.command("ls-todo")
 def ls_todo(
-    format: FORMAT_TYPES = typer.Option("text", "--format", help="Output format (text, csv, json)"),
+    format: FORMAT_TYPES = typer.Option(
+        "text", "--format", help="Output format (text, csv, json)"
+    ),
 ):
     """alias for `later list --target=todo` command"""
     tasks = load_tasks()
